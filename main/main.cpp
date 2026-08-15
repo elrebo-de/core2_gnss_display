@@ -30,8 +30,12 @@ extern "C" void ppsSignalCb(void *arg, void *data)
     int angle = 0;
     int speed = 0;
     int altitude = 0;
-    std::string xlatitude;
-    std::string xlongitude;
+    std::string latitudeDeg;
+    std::string longitudeDeg;
+    std::string latitudeDegMin;
+    std::string longitudeDegMin;
+    std::string latitudeDegMinSec;
+    std::string longitudeDegMinSec;
     std::string xdate;
     std::string xtime;
     int nrOfSats = 0;
@@ -123,12 +127,32 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                      date.c_str(),
                      variation.c_str());
             // verwende latitude im label widget breite (latitude)
+            // format is: ddmm.ffffff,{N|S}
             if(latitude.length() >= 13) {
-                xlatitude = latitude.substr(0,2).append("° ").append(latitude.substr(2,9)).append("' ").append(latitude.substr(12,1));
+                latitudeDegMin = latitude.substr(0,2).append("°").append(latitude.substr(2,9)).append("'").append(latitude.substr(12,1));
+                float floatDeg = std::stof(latitude.substr(0,2)) + std::stof(latitude.substr(2,9)) / 60;
+                char deg[20];
+                sprintf(deg, "%011.8f°%s", floatDeg, latitude.substr(12,1).c_str());
+                latitudeDeg = std::string(deg);
+                float sec = std::stof(latitude.substr(4,7)) * 60;
+                char degMinSec[20];
+                sprintf(degMinSec, "%s°%s'%7.4f\"%s", latitude.substr(0,2).c_str(), latitude.substr(2,2).c_str(), sec, latitude.substr(12,1).c_str());
+                latitudeDegMinSec = std::string(degMinSec);
+                ESP_LOGI(tag.c_str(), "Deg: %s, Min: %s, Sec: %7.4f, LatitudeDegMinSec: %s, LatitudeDegMin: %s, LatitudeDeg: %s", latitude.substr(0,2).c_str(), latitude.substr(2,2).c_str(), sec, latitudeDegMinSec.c_str(), latitudeDegMin.c_str(), latitudeDeg.c_str());
             }
             // verwende longitude im label widget laenge (longitude)
+            // format is: dddmm.ffffff,{W|E}
             if(longitude.length() >= 14) {
-                xlongitude = longitude.substr(0,3).append("° ").append(longitude.substr(3,9)).append("' ").append(longitude.substr(13,1));
+                longitudeDegMin = longitude.substr(0,3).append("°").append(longitude.substr(3,9)).append("'").append(longitude.substr(13,1));
+                float floatDeg = std::stof(longitude.substr(0,3)) + std::stof(latitude.substr(3,9)) / 60;
+                char deg[20];
+                sprintf(deg, "%012.8f°%s", floatDeg, longitude.substr(13,1).c_str());
+                longitudeDeg = std::string(deg);
+                float sec = std::stof(longitude.substr(5,7)) * 60;
+                char degMinSec[20];
+                sprintf(degMinSec,"%s°%s'%7.4f\"%s", longitude.substr(0,3).c_str(), longitude.substr(3,2).c_str(), sec, longitude.substr(13,1).c_str());
+                longitudeDegMinSec = std::string(degMinSec);
+                ESP_LOGI(tag.c_str(), "Deg: %s, Min: %s, Sec: %7.4f, LongitudeDegMinSec: %s, LongitudeDegMin: %s, LongitudeDeg: %s", longitude.substr(0,3).c_str(), longitude.substr(3,2).c_str(), sec, longitudeDegMinSec.c_str(), longitudeDegMin.c_str(), longitudeDeg.c_str());
             }
             // verwende time im label widget uhrzeit (time)
             if(time.length() >= 6) {
@@ -187,11 +211,11 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 nrOfSats = std::stoi(numberOfSatellites);
             }
         }
-        ESP_LOGI(tag.c_str(), "speed: %d, angle: %d, altitude: %d, latitude: %s, longitude: %s, date: %s, time: %s, nrOfSats: %d", speed, angle, altitude, xlatitude.c_str(), xlongitude.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
+        ESP_LOGI(tag.c_str(), "speed: %d, angle: %d, altitude: %d, latitude: %s, longitude: %s, date: %s, time: %s, nrOfSats: %d", speed, angle, altitude, latitudeDeg.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
 
         // set current display values
         bsp_display_lock(0);
-        lv_gnss_display_set_current_values(angle, speed, altitude, xlatitude.c_str(), xlongitude.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
+        lv_gnss_display_set_current_values(angle, speed, altitude, latitudeDeg.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
         bsp_display_unlock();
     }
 }
@@ -236,11 +260,12 @@ extern "C" void powerOffCb(lv_event_t * e)
     // wait a moment ...
     vTaskDelay(500 / portTICK_PERIOD_MS); // delay 0.5 seconds
 
-    // AXP2101 PowerOff
-    uint8_t powerOff[2] = {0x10, 0x01};
-
+    // AXP2101: VBUS trennen und PowerOff
+    uint8_t disconnectVbus[2] = {0x18, 0x01};
+    ESP_ERROR_CHECK(i2c_master_transmit(axp_dev_handle, disconnectVbus, 2, -1));
+    vTaskDelay(100 / portTICK_PERIOD_MS); // delay 0.1 seconds
+    uint8_t powerOff[2] = {0x10, 0x31};
     ESP_ERROR_CHECK(i2c_master_transmit(axp_dev_handle, powerOff, 2, -1));
-
     }
 }
 

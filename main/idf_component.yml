@@ -7,4 +7,5 @@ dependencies:
   espressif/m5stack_core_2: ^3.0.1
   elrebo-de/generic_uart: ^1.0.2
   elrebo-de/generic_button: ^1.1.1
+  #0015/map_tiles: ^1.0.3
 

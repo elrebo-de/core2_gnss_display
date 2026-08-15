@@ -226,7 +226,7 @@ void lv_gnss_display(lv_event_cb_t powerOffCb)
 
     // 3. Erstelle ein einfaches UI-Element (Button), um den Touch zu testen
     btn = lv_btn_create(lv_scr_act());
-    lv_obj_set_pos(btn, 10, 10);
+    lv_obj_set_pos(btn, 10, 20);
     lv_obj_set_size(btn, 70, 50);
 
     // Event-Callback an den Button hängen
