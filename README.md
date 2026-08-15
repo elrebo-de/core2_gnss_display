@@ -2,7 +2,7 @@
 
 This project uses an M5STACK CORE2 V1.1 SoC together with a Waveshare LC76G GNSS Module to display Satellite data.
 
-![picture](IMG_5852.png "CORE2 GNSS Display")
+![picture](IMG_5856.png "CORE2 GNSS Display")
 
 On the left side of the picture you see the Waveshare LC76G GNSS Module and on the right side the CORE2 V1.1 SoC, which displays the satellite data.
 
@@ -10,17 +10,18 @@ The display shows
 
 on the left from top to bottom:
 
-* the altitude im meters above sea level: 419 m asl
-* the latitude: 49° 28.195505' N
-* the longitude: 008° 45.360648' E
-* the date: 14. August 2026
-* the time: 13:42.43 UTC
-* the nr of satellites: 29
+* a button to power off the system
+* the altitude im meters above sea level: 166 m asl
+* the latitude: 50° 37.668623' N
+* the longitude: 007° 00.928284' E
+* the date: 15. August 2026
+* the time: 13:36.02 UTC
+* the nr of satellites: 21
 
 on the right:
 
-* a compass showing the direction of movement
 * the velocity in km/h
+* a compass showing the direction of movement
 
 The Waveshare LC76G GNSS Module receives the satellite signals and as soon as it has enough information it signals the availability on a PPS (puls per second) pin and transmits the data through a UART connection to the SoC.
  
@@ -42,6 +43,8 @@ For every PPS signal a BUTTON_SINGLE_CLICK event is triggered and the function `
 
 To receive the GNSS data it uses the component `elrebo-de/generic_uart`. 
 
+To power off the system it uses the I2C functionality of ESP-IDF.
+
 ``` log
 I (541) main_task: Calling app_main()
 I (1041) CORE2 GNSS Display: Configure GenericUart gnssUart
@@ -54,27 +57,38 @@ I (1051) ppsSignal: RegisterCallbackForEvent called
 I (1051) CORE2 GNSS Display: Configure Display
 I (1061) LVGL: Starting LVGL task
 W (1061) i2c.master: Please check pull-up resistances whether be connected properly. Otherwise unexpected behavior would happen. For more detailed information, please read docs
-I (1101) M5Stack: Install panel IO
-I (1101) M5Stack: Install LCD driver
-I (1101) ili9341: LCD panel create success, version: 2.0.2
-I (1261) M5Stack: Setting LCD backlight: 100%
-I (1941) CORE2 GNSS Display: Callback for PPS signal called!
-I (2041) CORE2 GNSS Display: speed: 0, angle: 173, altitude: 415, latitude: 49° 28.206138' N, longitude: 008° 45.355541' E, date: 14.08.26, time: 13:04:10, nrOfSats: 25
-I (2941) CORE2 GNSS Display: Callback for PPS signal called!
-I (3041) CORE2 GNSS Display: speed: 0, angle: 173, altitude: 415, latitude: 49° 28.206138' N, longitude: 008° 45.355535' E, date: 14.08.26, time: 13:04:11, nrOfSats: 25
-I (3941) CORE2 GNSS Display: Callback for PPS signal called!
-I (4041) CORE2 GNSS Display: speed: 0, angle: 173, altitude: 415, latitude: 49° 28.206125' N, longitude: 008° 45.355541' E, date: 14.08.26, time: 13:04:12, nrOfSats: 25
-I (4941) CORE2 GNSS Display: Callback for PPS signal called!
-I (5041) CORE2 GNSS Display: speed: 0, angle: 173, altitude: 415, latitude: 49° 28.206125' N, longitude: 008° 45.355530' E, date: 14.08.26, time: 13:04:13, nrOfSats: 25
-I (5941) CORE2 GNSS Display: Callback for PPS signal called!
-I (6041) CORE2 GNSS Display: speed: 0, angle: 173, altitude: 415, latitude: 49° 28.206113' N, longitude: 008° 45.355523' E, date: 14.08.26, time: 13:04:14, nrOfSats: 25
-I (6941) CORE2 GNSS Display: Callback for PPS signal called!
-I (7041) CORE2 GNSS Display: speed: 0, angle: 173, altitude: 415, latitude: 49° 28.206107' N, longitude: 008° 45.355523' E, date: 14.08.26, time: 13:04:15, nrOfSats: 25
-I (7941) CORE2 GNSS Display: Callback for PPS signal called!
-I (8041) CORE2 GNSS Display: speed: 0, angle: 173, altitude: 415, latitude: 49° 28.206095' N, longitude: 008° 45.355523' E, date: 14.08.26, time: 13:04:16, nrOfSats: 25
-I (8941) CORE2 GNSS Display: Callback for PPS signal called!
-I (9041) CORE2 GNSS Display: speed: 0, angle: 173, altitude: 415, latitude: 49° 28.206066' N, longitude: 008° 45.355547' E, date: 14.08.26, time: 13:04:17, nrOfSats: 25
-I (9941) CORE2 GNSS Display: Callback for PPS signal called!
-I (10041) CORE2 GNSS Display: speed: 0, angle: 173, altitude: 415, latitude: 49° 28.206041' N, longitude: 008° 45.355577' E, date: 14.08.26, time: 13:04:18, nrOfSats: 25
+I (1111) M5Stack: Install panel IO
+I (1111) M5Stack: Install LCD driver
+I (1111) ili9341: LCD panel create success, version: 2.0.2
+I (1271) M5Stack: Setting LCD backlight: 50%
+I (1511) CORE2 GNSS Display: Callback for PPS signal called!
+I (1611) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 0, latitude: , longitude: , date: , time: , nrOfSats: 0
+I (14541) CORE2 GNSS Display: Callback for PPS signal called!
+I (14541) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 0, latitude: , longitude: , date: 15.08.26, time: 14:02:03, nrOfSats: 0
+I (15541) CORE2 GNSS Display: Callback for PPS signal called!
+I (15641) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 167, latitude: 50° 37.664873' N, longitude: 007° 00.895127' E, date: 15.08.26, time: 14:02:17, nrOfSats: 16
+I (16541) CORE2 GNSS Display: Callback for PPS signal called!
+I (16641) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 167, latitude: 50° 37.665239' N, longitude: 007° 00.895877' E, date: 15.08.26, time: 14:02:18, nrOfSats: 18
+I (17541) CORE2 GNSS Display: Callback for PPS signal called!
+I (17641) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 167, latitude: 50° 37.665336' N, longitude: 007° 00.898356' E, date: 15.08.26, time: 14:02:19, nrOfSats: 18
+I (18541) CORE2 GNSS Display: Callback for PPS signal called!
+I (18641) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 167, latitude: 50° 37.665143' N, longitude: 007° 00.899717' E, date: 15.08.26, time: 14:02:20, nrOfSats: 19
+I (19541) CORE2 GNSS Display: Callback for PPS signal called!
+I (19641) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 167, latitude: 50° 37.665408' N, longitude: 007° 00.901805' E, date: 15.08.26, time: 14:02:21, nrOfSats: 19
+I (20541) CORE2 GNSS Display: Callback for PPS signal called!
+I (20641) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 167, latitude: 50° 37.665851' N, longitude: 007° 00.904751' E, date: 15.08.26, time: 14:02:22, nrOfSats: 18
+I (21541) CORE2 GNSS Display: Callback for PPS signal called!
+I (21641) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 167, latitude: 50° 37.665977' N, longitude: 007° 00.906959' E, date: 15.08.26, time: 14:02:23, nrOfSats: 18
+I (22541) CORE2 GNSS Display: Callback for PPS signal called!
+I (22641) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 167, latitude: 50° 37.666241' N, longitude: 007° 00.908651' E, date: 15.08.26, time: 14:02:24, nrOfSats: 18
+I (23541) CORE2 GNSS Display: Callback for PPS signal called!
+I (23641) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 167, latitude: 50° 37.666415' N, longitude: 007° 00.909731' E, date: 15.08.26, time: 14:02:25, nrOfSats: 18
+I (24541) CORE2 GNSS Display: Callback for PPS signal called!
+I (24641) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 167, latitude: 50° 37.666607' N, longitude: 007° 00.910841' E, date: 15.08.26, time: 14:02:26, nrOfSats: 18
+I (25541) CORE2 GNSS Display: Callback for PPS signal called!
+I (25641) CORE2 GNSS Display: speed: 0, angle: 0, altitude: 167, latitude: 50° 37.666775' N, longitude: 007° 00.911507' E, date: 15.08.26, time: 14:02:27, nrOfSats: 19
+I (26151) CORE2 GNSS Display: PowerOff button clicked!
+I (26151) CORE2 GNSS Display: AXP2101 I2C interface successfully established via esp_bsp!
+I (26151) CORE2 GNSS Display: Power Off!
 ```
 

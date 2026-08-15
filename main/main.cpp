@@ -13,7 +13,7 @@
 #include "generic_uart.hpp"
 GenericUart *gnssUart; // pointer to GenericUart class
 
-//static char *TAG = "app_main";
+#include "driver/i2c_master.h"
 
 #define LOG_MEM_INFO (0)
 
@@ -188,8 +188,59 @@ extern "C" void ppsSignalCb(void *arg, void *data)
             }
         }
         ESP_LOGI(tag.c_str(), "speed: %d, angle: %d, altitude: %d, latitude: %s, longitude: %s, date: %s, time: %s, nrOfSats: %d", speed, angle, altitude, xlatitude.c_str(), xlongitude.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
-        // set current values
+
+        // set current display values
+        bsp_display_lock(0);
         lv_gnss_display_set_current_values(angle, speed, altitude, xlatitude.c_str(), xlongitude.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
+        bsp_display_unlock();
+    }
+}
+
+// The AXP2101 default I2C slave address
+#define AXP2101_I2C_ADDR   0x34
+
+// Callback-Funktion für den PowerOff Button click
+extern "C" void powerOffCb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if(code == LV_EVENT_CLICKED) {
+        ESP_LOGI(tag.c_str(), "PowerOff button clicked!");
+
+    // 1. Initialize the board's I2C bus via the BSP wrapper
+    esp_err_t ret = bsp_i2c_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(tag.c_str(), "Failed to initialize standard BSP I2C bus");
+        return;
+    }
+
+    // 2. Fetch the native ESP-IDF driver master bus handle
+    i2c_master_bus_handle_t i2c_bus = bsp_i2c_get_handle();
+
+    // 3. Register the AXP2101 device wrapper context onto the active bus
+    i2c_master_dev_handle_t axp_dev_handle;
+    i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = AXP2101_I2C_ADDR,
+        .scl_speed_hz = 400000, // Standard 400kHz I2C speed
+    };
+
+    ret = i2c_master_bus_add_device(i2c_bus, &dev_cfg, &axp_dev_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(tag.c_str(), "Failed to add AXP2101 device to the I2C master bus");
+        return;
+    }
+
+    ESP_LOGI(tag.c_str(), "AXP2101 I2C interface successfully established via esp_bsp!");
+
+    ESP_LOGI(tag.c_str(), "Power Off!");
+    // wait a moment ...
+    vTaskDelay(500 / portTICK_PERIOD_MS); // delay 0.5 seconds
+
+    // AXP2101 PowerOff
+    uint8_t powerOff[2] = {0x10, 0x01};
+
+    ESP_ERROR_CHECK(i2c_master_transmit(axp_dev_handle, powerOff, 2, -1));
+
     }
 }
 
@@ -252,11 +303,14 @@ extern "C" void app_main(void)
 
     /* Initialize display and LVGL */
     bsp_display_start();
-    /* Set display brightness to 100% */
-    bsp_display_backlight_on();
+    // Set display brightness to 100%
+    //bsp_display_backlight_on();
+
+    // Set display brightness to 50%
+    bsp_display_brightness_set(50);
 
     bsp_display_lock(0);
-    lv_gnss_display();
+    lv_gnss_display(powerOffCb);
     bsp_display_unlock();
 
 /*****/
