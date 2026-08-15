@@ -91,4 +91,10 @@ I (26151) CORE2 GNSS Display: PowerOff button clicked!
 I (26151) CORE2 GNSS Display: AXP2101 I2C interface successfully established via esp_bsp!
 I (26151) CORE2 GNSS Display: Power Off!
 ```
+In this log we see the following:
+
+* at timestamp 1511 (after 1.5 sec.) the PPS signal callback was triggered -> no useful data received
+* at timestamp 14541 (after 14.5 sec.) the PPS signal was triggered the second time -> now date and time are set
+* at timestamp 15541 (after 15.5 sec.) the PPS signal was triggered again, now positioning information is available from 16 satellites
+* at timestamp 16151 /after 16 sec.) the Off button was pressed -> power is switched off
 
