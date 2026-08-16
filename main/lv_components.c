@@ -5,8 +5,10 @@ static lv_obj_t * scale;
 static lv_obj_t * label;
 static lv_obj_t * tacho;
 static lv_obj_t * hoehe;
-static lv_obj_t * breite;
-static lv_obj_t * laenge;
+static lv_obj_t * breiteDegMinSec;
+static lv_obj_t * laengeDegMinSec;
+static lv_obj_t * breiteDeg;
+static lv_obj_t * laengeDeg;
 static lv_obj_t * uhrzeit;
 static lv_obj_t * datum;
 static lv_obj_t * anzahlSatelliten;
@@ -38,7 +40,7 @@ static void set_heading_value(void * obj, int32_t v)
     lv_label_set_text_fmt(label, "%d°\n%s", (int)v, heading_to_cardinal(v));
 }
 
-void lv_gnss_display_set_current_values(int angle, int speed, int altitude, const char *latitude, const char *longitude, const char *date, const char *time, int nrOfSats)
+void lv_gnss_display_set_current_values(int angle, int speed, int altitude, const char *latitudeDegMinSec, const char *latitudeDeg, const char *longitudeDegMinSec, const char *longitudeDeg, const char *date, const char *time, int nrOfSats)
 {
     if (speed >= 2) {
         lv_scale_set_rotation(scale, 270 - angle);
@@ -46,8 +48,10 @@ void lv_gnss_display_set_current_values(int angle, int speed, int altitude, cons
     }
     lv_label_set_text_fmt(tacho, "%3d km/h", speed);
     lv_label_set_text_fmt(hoehe, "%3d m asl", altitude);
-    lv_label_set_text_fmt(breite, "%s", latitude);
-    lv_label_set_text_fmt(laenge, "%s", longitude);
+    lv_label_set_text_fmt(breiteDegMinSec, "%s", latitudeDegMinSec);
+    lv_label_set_text_fmt(breiteDeg, "%s", latitudeDeg);
+    lv_label_set_text_fmt(laengeDegMinSec, "%s", longitudeDegMinSec);
+    lv_label_set_text_fmt(laengeDeg, "%s", longitudeDeg);
     lv_label_set_text_fmt(datum, "Date: %s", date);
     lv_label_set_text_fmt(uhrzeit, "Time: %s UTC", time);
     lv_label_set_text_fmt(anzahlSatelliten, "Nr of Sats: %d", nrOfSats);
@@ -163,33 +167,50 @@ void lv_gnss_display(lv_event_cb_t powerOffCb)
     lv_obj_set_height(hoehe, 30);
     // x: 0 + Rand
     // y: 0 + Rand
-    // lv_obj_set_pos(hoehe, 10, 10); // V1.0.0
-    lv_obj_set_pos(hoehe, 10, 10 + 70); // V1.0.1
+    lv_obj_set_pos(hoehe, 10, 80);
     lv_label_set_text_fmt(hoehe, "%3d m asl", 0);
     // lv_obj_set_style_text_align(hoehe, LV_TEXT_ALIGN_RIGHT, 0); // V1.0.0
     lv_obj_set_style_text_align(hoehe, LV_TEXT_ALIGN_LEFT, 0); // V1.0.1
 
     // Breite
-    breite = lv_label_create(lv_screen_active());
-    lv_obj_set_width(breite, 140);
-    lv_obj_set_height(breite, 15);
+    breiteDegMinSec = lv_label_create(lv_screen_active());
+    lv_obj_set_width(breiteDegMinSec, 140);
+    lv_obj_set_height(breiteDegMinSec, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    // lv_obj_set_pos(breite, 10, 45); // V1.0.0
-    lv_obj_set_pos(breite, 10, 45 + 70); // V1.0.1
-    lv_label_set_text(breite, "");
-    lv_obj_set_style_text_align(breite, LV_TEXT_ALIGN_LEFT, 0);
+    lv_obj_set_pos(breiteDegMinSec, 10, 110);
+    lv_label_set_text(breiteDegMinSec, "");
+    lv_obj_set_style_text_align(breiteDegMinSec, LV_TEXT_ALIGN_LEFT, 0);
 
     // Laenge
-    laenge = lv_label_create(lv_screen_active());
-    lv_obj_set_width(laenge, 140);
-    lv_obj_set_height(laenge, 15);
+    laengeDegMinSec = lv_label_create(lv_screen_active());
+    lv_obj_set_width(laengeDegMinSec, 140);
+    lv_obj_set_height(laengeDegMinSec, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    // lv_obj_set_pos(laenge, 10, 60); // V1.0.0
-    lv_obj_set_pos(laenge, 10, 60 + 70); // V1.0.1
-    lv_label_set_text(laenge, "");
-    lv_obj_set_style_text_align(laenge, LV_TEXT_ALIGN_LEFT, 0);
+    lv_obj_set_pos(laengeDegMinSec, 10, 125);
+    lv_label_set_text(laengeDegMinSec, "");
+    lv_obj_set_style_text_align(laengeDegMinSec, LV_TEXT_ALIGN_LEFT, 0);
+
+    // Breite
+    breiteDeg = lv_label_create(lv_screen_active());
+    lv_obj_set_width(breiteDeg, 140);
+    lv_obj_set_height(breiteDeg, 15);
+    // x: 0 + Rand
+    // y: 30 + Rand
+    lv_obj_set_pos(breiteDeg, 10, 145);
+    lv_label_set_text(breiteDeg, "");
+    lv_obj_set_style_text_align(breiteDeg, LV_TEXT_ALIGN_LEFT, 0);
+
+    // Laenge
+    laengeDeg = lv_label_create(lv_screen_active());
+    lv_obj_set_width(laengeDeg, 140);
+    lv_obj_set_height(laengeDeg, 15);
+    // x: 0 + Rand
+    // y: 30 + Rand
+    lv_obj_set_pos(laengeDeg, 10, 160);
+    lv_label_set_text(laengeDeg, "");
+    lv_obj_set_style_text_align(laengeDeg, LV_TEXT_ALIGN_LEFT, 0);
 
     // datum
     datum = lv_label_create(lv_screen_active());
@@ -197,8 +218,7 @@ void lv_gnss_display(lv_event_cb_t powerOffCb)
     lv_obj_set_height(datum, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    // lv_obj_set_pos(datum, 10, 90); // V1.0.0
-    lv_obj_set_pos(datum, 10, 90 + 70); // V1.0.1
+    lv_obj_set_pos(datum, 10, 180);
     lv_label_set_text(datum, "");
     lv_obj_set_style_text_align(datum, LV_TEXT_ALIGN_LEFT, 0);
 
@@ -208,8 +228,7 @@ void lv_gnss_display(lv_event_cb_t powerOffCb)
     lv_obj_set_height(uhrzeit, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    // lv_obj_set_pos(uhrzeit, 10, 105); // V1.0.0
-    lv_obj_set_pos(uhrzeit, 10, 105 + 70); // V1.0.1
+    lv_obj_set_pos(uhrzeit, 10, 195);
     lv_label_set_text(uhrzeit, "");
     lv_obj_set_style_text_align(uhrzeit, LV_TEXT_ALIGN_LEFT, 0);
 
@@ -219,8 +238,7 @@ void lv_gnss_display(lv_event_cb_t powerOffCb)
     lv_obj_set_height(anzahlSatelliten, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    // lv_obj_set_pos(anzahlSatelliten, 10, 135); // V1.0.0
-    lv_obj_set_pos(anzahlSatelliten, 10, 135 + 70); // V1.0.1
+    lv_obj_set_pos(anzahlSatelliten, 10, 220);
     lv_label_set_text(anzahlSatelliten, "");
     lv_obj_set_style_text_align(anzahlSatelliten, LV_TEXT_ALIGN_LEFT, 0);
 

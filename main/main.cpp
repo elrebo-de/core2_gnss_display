@@ -132,7 +132,8 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 latitudeDegMin = latitude.substr(0,2).append("°").append(latitude.substr(2,9)).append("'").append(latitude.substr(12,1));
                 float floatDeg = std::stof(latitude.substr(0,2)) + std::stof(latitude.substr(2,9)) / 60;
                 char deg[20];
-                sprintf(deg, "%011.8f°%s", floatDeg, latitude.substr(12,1).c_str());
+                sprintf(deg, "%011.8f", floatDeg);
+                if(0 == latitude.substr(12,1).compare("S")) strcpy(deg, std::string("-").append(deg).c_str());
                 latitudeDeg = std::string(deg);
                 float sec = std::stof(latitude.substr(4,7)) * 60;
                 char degMinSec[20];
@@ -144,9 +145,10 @@ extern "C" void ppsSignalCb(void *arg, void *data)
             // format is: dddmm.ffffff,{W|E}
             if(longitude.length() >= 14) {
                 longitudeDegMin = longitude.substr(0,3).append("°").append(longitude.substr(3,9)).append("'").append(longitude.substr(13,1));
-                float floatDeg = std::stof(longitude.substr(0,3)) + std::stof(latitude.substr(3,9)) / 60;
+                float floatDeg = std::stof(longitude.substr(0,3)) + std::stof(longitude.substr(3,9)) / 60;
                 char deg[20];
-                sprintf(deg, "%012.8f°%s", floatDeg, longitude.substr(13,1).c_str());
+                sprintf(deg, "%012.8f", floatDeg);
+                if(0 == longitude.substr(13,1).compare("W")) strcpy(deg, std::string("-").append(deg).c_str());
                 longitudeDeg = std::string(deg);
                 float sec = std::stof(longitude.substr(5,7)) * 60;
                 char degMinSec[20];
@@ -211,11 +213,11 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 nrOfSats = std::stoi(numberOfSatellites);
             }
         }
-        ESP_LOGI(tag.c_str(), "speed: %d, angle: %d, altitude: %d, latitude: %s, longitude: %s, date: %s, time: %s, nrOfSats: %d", speed, angle, altitude, latitudeDeg.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
+        ESP_LOGI(tag.c_str(), "speed: %d, angle: %d, altitude: %d, latitudeDegMinSec: %s, latitudeDeg: %s, longitudeDegMinSec: %s, longitudeDeg: %s, date: %s, time: %s, nrOfSats: %d", speed, angle, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
 
         // set current display values
         bsp_display_lock(0);
-        lv_gnss_display_set_current_values(angle, speed, altitude, latitudeDeg.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
+        lv_gnss_display_set_current_values(angle, speed, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
         bsp_display_unlock();
     }
 }
