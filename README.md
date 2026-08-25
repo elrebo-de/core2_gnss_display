@@ -113,7 +113,6 @@ I (
 # Known problems
 
 * Currently the zoom for the map display and the initial coordinates have to be set in the program code.
-* 
 
 # Next steps
 
