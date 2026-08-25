@@ -1,6 +1,8 @@
 #include "lvgl.h"
+#include "bsp/esp-bsp.h"
 #if LV_USE_SCALE && LV_BUILD_EXAMPLES
 
+// all objects in cockpit
 static lv_obj_t * scale;
 static lv_obj_t * label;
 static lv_obj_t * tacho;
@@ -12,8 +14,6 @@ static lv_obj_t * laengeDeg;
 static lv_obj_t * uhrzeit;
 static lv_obj_t * datum;
 static lv_obj_t * anzahlSatelliten;
-
-static  lv_obj_t * btn;
 
 static const char * heading_to_cardinal(int32_t heading)
 {
@@ -35,13 +35,16 @@ static const char * heading_to_cardinal(int32_t heading)
 
 static void set_heading_value(void * obj, int32_t v)
 {
+    bsp_display_lock(0);
     LV_UNUSED(obj);
     lv_scale_set_rotation(scale, 270 - v);
     lv_label_set_text_fmt(label, "%d°\n%s", (int)v, heading_to_cardinal(v));
+    bsp_display_unlock();
 }
 
-void lv_gnss_display_set_current_values(int angle, int speed, int altitude, const char *latitudeDegMinSec, const char *latitudeDeg, const char *longitudeDegMinSec, const char *longitudeDeg, const char *date, const char *time, int nrOfSats)
+void lv_gnss_cockpit_set_current_values(int angle, int speed, int altitude, const char *latitudeDegMinSec, const char *latitudeDeg, const char *longitudeDegMinSec, const char *longitudeDeg, const char *date, const char *time, int nrOfSats)
 {
+    bsp_display_lock(0);
     if (speed >= 2) {
         lv_scale_set_rotation(scale, 270 - angle);
         lv_label_set_text_fmt(label, "%d°\n%s", angle, heading_to_cardinal(angle));
@@ -53,12 +56,14 @@ void lv_gnss_display_set_current_values(int angle, int speed, int altitude, cons
     lv_label_set_text_fmt(laengeDegMinSec, "%s", longitudeDegMinSec);
     lv_label_set_text_fmt(laengeDeg, "%s", longitudeDeg);
     lv_label_set_text_fmt(datum, "Date: %s", date);
-    lv_label_set_text_fmt(uhrzeit, "Time: %s UTC", time);
+    lv_label_set_text_fmt(uhrzeit, "Time: %s", time);
     lv_label_set_text_fmt(anzahlSatelliten, "Nr of Sats: %d", nrOfSats);
+    bsp_display_unlock();
 }
 
 static void draw_event_cb(lv_event_t * e)
 {
+    bsp_display_lock(0);
     lv_draw_task_t * draw_task = lv_event_get_draw_task(e);
     lv_draw_dsc_base_t * base_dsc = (lv_draw_dsc_base_t *)lv_draw_task_get_draw_dsc(draw_task);
     lv_draw_label_dsc_t * label_draw_dsc = lv_draw_task_get_label_dsc(draw_task);
@@ -75,18 +80,20 @@ static void draw_event_cb(lv_event_t * e)
             }
         }
     }
+    bsp_display_unlock();
 }
 
-void lv_gnss_display(lv_event_cb_t powerOffCb)
+void lv_gnss_cockpit_init(lv_obj_t *parent)
 {
+    bsp_display_lock(0);
     // Compass
-    scale = lv_scale_create(lv_screen_active());
+    scale = lv_scale_create(parent);
 
     lv_obj_set_size(scale, 150, 150);
     lv_scale_set_mode(scale, LV_SCALE_MODE_ROUND_INNER);
     // linke obere Ecke des Widgets setzen
     // lv_obj_set_pos(scale, 320 - 150 - 10, 10); // V1.0.0
-    lv_obj_set_pos(scale, 320 - 150 - 10, 10 + 70); // V1.0.1
+    lv_obj_set_pos(scale, 320 - 150 - 10, 60); // V1.0.1
     //lv_obj_set_align(scale, LV_ALIGN_TOP_RIGHT);
 
     lv_scale_set_total_tick_count(scale, 61);
@@ -114,14 +121,14 @@ void lv_gnss_display(lv_event_cb_t powerOffCb)
     // Eingebaute 20px-Schriftart zuweisen (Standard ist meist 14px)
     lv_style_set_text_font(&style_little_larger, &lv_font_montserrat_20);
 
-    label = lv_label_create(lv_screen_active());
+    label = lv_label_create(parent);
     lv_obj_add_style(label, &style_little_larger, LV_PART_MAIN);
     lv_obj_set_width(label, 100);
     lv_obj_set_height(label, 100);
     // x: Breite -halbe Kompassbreite - Rand
     // y: halbe Kompasshöhe + Rand - Höhe der oberen Zeile
     // lv_obj_set_pos(label, 320 - 150/2 - 10 - 100/2, 150/2 + 10 - 20); // V1.0.0
-    lv_obj_set_pos(label, 320 - 150/2 - 10 - 100/2, 150/2 + 10 - 20 + 70); // V1.0.1
+    lv_obj_set_pos(label, 320 - 150/2 - 10 - 100/2, 115); // V1.0.1
     lv_label_set_text(label, "0°\nN");
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
 
@@ -142,14 +149,14 @@ void lv_gnss_display(lv_event_cb_t powerOffCb)
     // Eingebaute 48px-Schriftart zuweisen (Standard ist meist 14px)
     lv_style_set_text_font(&style_very_large, &lv_font_montserrat_48);
 
-    tacho = lv_label_create(lv_screen_active());
+    tacho = lv_label_create(parent);
     lv_obj_add_style(tacho, &style_very_large, LV_PART_MAIN);
     lv_obj_set_width(tacho, 300);
     lv_obj_set_height(tacho, 50);
     // x: 0 + Rand
     // y: Bildschirmhöhe - Schrifthöhe - Rand
     //lv_obj_set_pos(tacho, 10, 240-48-10); // V1.0.0
-    lv_obj_set_pos(tacho, 10, 20); // V1.0.1
+    lv_obj_set_pos(tacho, 10, 10); // V1.0.1
     lv_label_set_text_fmt(tacho, "%3d km/h", 0);
     lv_obj_set_style_text_align(tacho, LV_TEXT_ALIGN_RIGHT, 0);
 
@@ -161,100 +168,87 @@ void lv_gnss_display(lv_event_cb_t powerOffCb)
     // Eingebaute 24px-Schriftart zuweisen (Standard ist meist 14px)
     lv_style_set_text_font(&style_large, &lv_font_montserrat_24);
 
-    hoehe = lv_label_create(lv_screen_active());
+    hoehe = lv_label_create(parent);
     lv_obj_add_style(hoehe, &style_large, LV_PART_MAIN);
     lv_obj_set_width(hoehe, 140);
     lv_obj_set_height(hoehe, 30);
     // x: 0 + Rand
     // y: 0 + Rand
-    lv_obj_set_pos(hoehe, 10, 80);
+    lv_obj_set_pos(hoehe, 10, 58);
     lv_label_set_text_fmt(hoehe, "%3d m asl", 0);
     // lv_obj_set_style_text_align(hoehe, LV_TEXT_ALIGN_RIGHT, 0); // V1.0.0
     lv_obj_set_style_text_align(hoehe, LV_TEXT_ALIGN_LEFT, 0); // V1.0.1
 
     // Breite
-    breiteDegMinSec = lv_label_create(lv_screen_active());
+    breiteDegMinSec = lv_label_create(parent);
     lv_obj_set_width(breiteDegMinSec, 140);
     lv_obj_set_height(breiteDegMinSec, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    lv_obj_set_pos(breiteDegMinSec, 10, 110);
+    lv_obj_set_pos(breiteDegMinSec, 10, 88);
     lv_label_set_text(breiteDegMinSec, "");
     lv_obj_set_style_text_align(breiteDegMinSec, LV_TEXT_ALIGN_LEFT, 0);
 
     // Laenge
-    laengeDegMinSec = lv_label_create(lv_screen_active());
+    laengeDegMinSec = lv_label_create(parent);
     lv_obj_set_width(laengeDegMinSec, 140);
     lv_obj_set_height(laengeDegMinSec, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    lv_obj_set_pos(laengeDegMinSec, 10, 125);
+    lv_obj_set_pos(laengeDegMinSec, 10, 103);
     lv_label_set_text(laengeDegMinSec, "");
     lv_obj_set_style_text_align(laengeDegMinSec, LV_TEXT_ALIGN_LEFT, 0);
 
     // Breite
-    breiteDeg = lv_label_create(lv_screen_active());
+    breiteDeg = lv_label_create(parent);
     lv_obj_set_width(breiteDeg, 140);
     lv_obj_set_height(breiteDeg, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    lv_obj_set_pos(breiteDeg, 10, 145);
+    lv_obj_set_pos(breiteDeg, 10, 123);
     lv_label_set_text(breiteDeg, "");
     lv_obj_set_style_text_align(breiteDeg, LV_TEXT_ALIGN_LEFT, 0);
 
     // Laenge
-    laengeDeg = lv_label_create(lv_screen_active());
+    laengeDeg = lv_label_create(parent);
     lv_obj_set_width(laengeDeg, 140);
     lv_obj_set_height(laengeDeg, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    lv_obj_set_pos(laengeDeg, 10, 160);
+    lv_obj_set_pos(laengeDeg, 10, 138);
     lv_label_set_text(laengeDeg, "");
     lv_obj_set_style_text_align(laengeDeg, LV_TEXT_ALIGN_LEFT, 0);
 
     // datum
-    datum = lv_label_create(lv_screen_active());
+    datum = lv_label_create(parent);
     lv_obj_set_width(datum, 140);
     lv_obj_set_height(datum, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    lv_obj_set_pos(datum, 10, 180);
+    lv_obj_set_pos(datum, 10, 158);
     lv_label_set_text(datum, "");
     lv_obj_set_style_text_align(datum, LV_TEXT_ALIGN_LEFT, 0);
 
     // uhrzeit
-    uhrzeit = lv_label_create(lv_screen_active());
+    uhrzeit = lv_label_create(parent);
     lv_obj_set_width(uhrzeit, 140);
     lv_obj_set_height(uhrzeit, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    lv_obj_set_pos(uhrzeit, 10, 195);
+    lv_obj_set_pos(uhrzeit, 10, 173);
     lv_label_set_text(uhrzeit, "");
     lv_obj_set_style_text_align(uhrzeit, LV_TEXT_ALIGN_LEFT, 0);
 
     // Anzahl Satelliten
-    anzahlSatelliten = lv_label_create(lv_screen_active());
+    anzahlSatelliten = lv_label_create(parent);
     lv_obj_set_width(anzahlSatelliten, 140);
     lv_obj_set_height(anzahlSatelliten, 15);
     // x: 0 + Rand
     // y: 30 + Rand
-    lv_obj_set_pos(anzahlSatelliten, 10, 220);
+    lv_obj_set_pos(anzahlSatelliten, 10, 193);
     lv_label_set_text(anzahlSatelliten, "");
     lv_obj_set_style_text_align(anzahlSatelliten, LV_TEXT_ALIGN_LEFT, 0);
-
-    // 3. Erstelle ein einfaches UI-Element (Button), um den Touch zu testen
-    btn = lv_btn_create(lv_scr_act());
-    lv_obj_set_pos(btn, 10, 20);
-    lv_obj_set_size(btn, 70, 50);
-
-    // Event-Callback an den Button hängen
-    lv_obj_add_event_cb(btn, powerOffCb, LV_EVENT_ALL, NULL);
-
-    // Text auf dem Button platzieren
-    lv_obj_t * label = lv_label_create(btn);
-    lv_label_set_text(label, "Off");
-    lv_obj_center(label);
-
+    bsp_display_unlock();
 }
 
 #endif

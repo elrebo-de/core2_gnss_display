@@ -2,12 +2,24 @@
 #include <vector>
 #include <sstream>
 
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <time.h>
+#include <sys/time.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "esp_log.h"
 #include "bsp/esp-bsp.h"
 
-#include "lv_components.h" // my lvgl components
+#include "lv_gnss_cockpit.h" // cockpit components
+#include "lv_gnss_settings.h" // settings components
+#include "basic_map_display.h" // map components
+
+// Global Mutex for Timezone switch
+static SemaphoreHandle_t tz_mutex = NULL;
 
 #include "generic_button.hpp"
 #include "generic_uart.hpp"
@@ -17,8 +29,86 @@ GenericUart *gnssUart; // pointer to GenericUart class
 
 #define LOG_MEM_INFO (0)
 
-/*******/
 std::string tag("CORE2 GNSS Display");
+
+time_t my_timegm_safe(struct tm *tm) {
+    // initialize Mutex lazily at first call
+    if (tz_mutex == NULL) {
+        static StaticSemaphore_t mutex_buffer;
+        tz_mutex = xSemaphoreCreateMutexStatic(&mutex_buffer);
+    }
+
+    time_t ret = -1;
+
+    // lock Mutex (warts forever until Mutex is free
+    if (xSemaphoreTake(tz_mutex, portMAX_DELAY) == pdTRUE) {
+        char *tz = getenv("TZ");
+
+        // switch to UTC temporarily
+        unsetenv("TZ");
+        tzset();
+
+        // UTC has no DST
+        tm->tm_isdst = 0;
+        ret = mktime(tm);
+
+        // reset original timezone
+        if (tz) {
+            setenv("TZ", tz, 1);
+        } else {
+            unsetenv("TZ");
+        }
+        tzset();
+
+        // unlock Mutex
+        xSemaphoreGive(tz_mutex);
+    }
+    return ret;
+}
+
+std::string convert_gnss_date_and_time_to_local(std::string gnssDate, std::string gnssTime)
+{
+    if(gnssDate.length() < 8 || gnssTime.length() < 8) {
+        return std::string("");
+    }
+
+    // get UTC time from GNSS
+    struct tm utc_tm = {0};
+    utc_tm.tm_year = 2000 - 1900 + std::stoi(gnssDate.substr(6,2)); // years since 1900
+    utc_tm.tm_mon  = std::stoi(gnssDate.substr(3,2)) - 1;           // Month (0 = Januar, 7 = August)
+    utc_tm.tm_mday = std::stoi(gnssDate.substr(0,2));
+    utc_tm.tm_hour = std::stoi(gnssTime.substr(0,2));
+    utc_tm.tm_min  = std::stoi(gnssTime.substr(3,2));
+    utc_tm.tm_sec  = std::stoi(gnssTime.substr(6,2));
+
+    char utc_buf[64];
+    strftime(utc_buf, sizeof(utc_buf), "%d.%m.%Y %H:%M:%S %Z", &utc_tm);
+
+    // 3. transform UTC structure to a Unix timestamp
+    // my_timegm_safe() uses UTC
+    time_t utc_timestamp = my_timegm_safe(&utc_tm);
+
+    // define Unix timestamp
+    struct timeval tv;
+    tv.tv_sec = utc_timestamp;  // Seconds since 1.1.1970
+    tv.tv_usec = 0;             // Microseconds
+
+    // 2. set system time directly
+    settimeofday(&tv, NULL);
+
+    // translate Timestamp to local time
+    time_t now;
+    struct tm local_tm;
+    if(NULL == localtime_r(&utc_timestamp, &local_tm)) {
+        return std::string("");
+    };
+
+    // format result
+    char buf[64];
+    strftime(buf, sizeof(buf), "%d.%m.%Y %H:%M:%S %Z", &local_tm);
+
+    return std::string(buf);
+}
 
 // Callback function for PPS signal from LC76G GNSS Module
 extern "C" void ppsSignalCb(void *arg, void *data)
@@ -139,7 +229,7 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 char degMinSec[20];
                 sprintf(degMinSec, "%s°%s'%7.4f\"%s", latitude.substr(0,2).c_str(), latitude.substr(2,2).c_str(), sec, latitude.substr(12,1).c_str());
                 latitudeDegMinSec = std::string(degMinSec);
-                ESP_LOGI(tag.c_str(), "Deg: %s, Min: %s, Sec: %7.4f, LatitudeDegMinSec: %s, LatitudeDegMin: %s, LatitudeDeg: %s", latitude.substr(0,2).c_str(), latitude.substr(2,2).c_str(), sec, latitudeDegMinSec.c_str(), latitudeDegMin.c_str(), latitudeDeg.c_str());
+                ESP_LOGD(tag.c_str(), "Deg: %s, Min: %s, Sec: %7.4f, LatitudeDegMinSec: %s, LatitudeDegMin: %s, LatitudeDeg: %s", latitude.substr(0,2).c_str(), latitude.substr(2,2).c_str(), sec, latitudeDegMinSec.c_str(), latitudeDegMin.c_str(), latitudeDeg.c_str());
             }
             // verwende longitude im label widget laenge (longitude)
             // format is: dddmm.ffffff,{W|E}
@@ -154,7 +244,7 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 char degMinSec[20];
                 sprintf(degMinSec,"%s°%s'%7.4f\"%s", longitude.substr(0,3).c_str(), longitude.substr(3,2).c_str(), sec, longitude.substr(13,1).c_str());
                 longitudeDegMinSec = std::string(degMinSec);
-                ESP_LOGI(tag.c_str(), "Deg: %s, Min: %s, Sec: %7.4f, LongitudeDegMinSec: %s, LongitudeDegMin: %s, LongitudeDeg: %s", longitude.substr(0,3).c_str(), longitude.substr(3,2).c_str(), sec, longitudeDegMinSec.c_str(), longitudeDegMin.c_str(), longitudeDeg.c_str());
+                ESP_LOGD(tag.c_str(), "Deg: %s, Min: %s, Sec: %7.4f, LongitudeDegMinSec: %s, LongitudeDegMin: %s, LongitudeDeg: %s", longitude.substr(0,3).c_str(), longitude.substr(3,2).c_str(), sec, longitudeDegMinSec.c_str(), longitudeDegMin.c_str(), longitudeDeg.c_str());
             }
             // verwende time im label widget uhrzeit (time)
             if(time.length() >= 6) {
@@ -213,12 +303,26 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 nrOfSats = std::stoi(numberOfSatellites);
             }
         }
-        ESP_LOGI(tag.c_str(), "speed: %d, angle: %d, altitude: %d, latitudeDegMinSec: %s, latitudeDeg: %s, longitudeDegMinSec: %s, longitudeDeg: %s, date: %s, time: %s, nrOfSats: %d", speed, angle, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
+        ESP_LOGI(tag.c_str(), "speed: %d, angle: %d, alt: %d, latDegMinSec: %s, latDeg: %s, lonDegMinSec: %s, lonDeg: %s, date: %s, time: %s, nrOfSats: %d", speed, angle, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
 
-        // set current display values
-        bsp_display_lock(0);
-        lv_gnss_display_set_current_values(angle, speed, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
-        bsp_display_unlock();
+        // set current timestamp
+        if(xdate.length() == 8 && xtime.length() == 8) {
+            std::string localTimestamp = convert_gnss_date_and_time_to_local(xdate, xtime);
+
+            ESP_LOGI(tag.c_str(), "Local time: %s", localTimestamp.c_str());
+
+            if(localTimestamp.length() >= 19) {
+                xdate = localTimestamp.substr(0,6).append(localTimestamp.substr(8,2));
+                xtime = localTimestamp.substr(11);
+            }
+        }
+        // set current cockpit values
+        lv_gnss_cockpit_set_current_values(angle, speed, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
+
+        // set marker position in map
+        if(latitudeDeg.length() > 7 && longitudeDeg.length() > 7) {
+            map_display_add_marker(std::stof(latitudeDeg), std::stof(longitudeDeg));
+        }
     }
 }
 
@@ -271,10 +375,30 @@ extern "C" void powerOffCb(lv_event_t * e)
     }
 }
 
+// SD card
+#include "esp_vfs_fat.h"
+#include "sdmmc_cmd.h"
+
+// Configuration parameters for the SD Card Virtual File System
+esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+    .format_if_mount_failed = false,      // Do not erase map data if mount fails
+    .max_files = 5,                       // Must allow at least 2-3 open files for map streaming
+    .allocation_unit_size = 16 * 1024     // Large allocation units optimize binary streaming
+};
+
 extern "C" void app_main(void)
 {
-/*******/
     vTaskDelay(500 / portTICK_PERIOD_MS); // delay 0.5 seconds
+
+    ESP_LOGI(tag.c_str(), "Configure local timezone");
+    // set timezone für Germany (CET/CEST incl. rules for switching)
+    // "CET-1CEST,M3.5.0,M10.5.0" bedeutet:
+    // - Normal time is CET (UTC+1)
+    // - Daylight saving time is CEST (UTC+2)
+    // - switch to CEST: March (3), last sunday (.5.0)
+    // - switch to CET: October (10), last sunday (.5.0)
+    setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0", 1);
+    tzset();
 
     ESP_LOGI(tag.c_str(), "Configure GenericUart gnssUart");
 
@@ -307,6 +431,34 @@ extern "C" void app_main(void)
                  uart_tx_pin,
                  uart_rx_pin);
 
+    ESP_LOGI(tag.c_str(), "Configure SD card");
+    // Initialise BSP (incl. I2C/PMU)
+    ESP_ERROR_CHECK(bsp_i2c_init());
+
+    // integrate SD card via SPI
+    bsp_sdcard_cfg_t sd_cfg = {
+        .mount = &mount_config,
+    };
+
+    if (bsp_sdcard_sdspi_mount(&sd_cfg) != ESP_OK) {
+        ESP_LOGE(tag.c_str(), "Error mounting SD card!");
+        return;
+    }
+
+    ESP_LOGI(tag.c_str(), "SD card successfully mounted at %s!", BSP_SD_MOUNT_POINT);
+
+    ESP_LOGI(tag.c_str(), "Configure Display");
+
+    // PSRAM Kapazität abfragen
+    size_t psram_size = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+
+    if (psram_size > 0) {
+        printf("PSRAM successfully activated! Free storage: %d Bytes\n", psram_size);
+    } else {
+        printf("Error: PSRAM could not be initialised.\n");
+    }
+
+
     ESP_LOGI(tag.c_str(), "Configure GenericButton ppsSignal");
 
     // set GPIO PPS signal "Button" configuration
@@ -324,21 +476,64 @@ extern "C" void app_main(void)
 	   &btn_gpio_cfg
 	);
 
-    ppsSignal.RegisterCallbackForEvent(BUTTON_SINGLE_CLICK, ppsSignalCb);
-
-    ESP_LOGI(tag.c_str(), "Configure Display");
-
-    /* Initialize display and LVGL */
-    bsp_display_start();
-    // Set display brightness to 100%
-    //bsp_display_backlight_on();
-
-    // Set display brightness to 50%
-    bsp_display_brightness_set(50);
+    bsp_display_start(); // Initialize display and LVGL
 
     bsp_display_lock(0);
-    lv_gnss_display(powerOffCb);
+
+    //********************
+    // display the TabView
+    //********************
+
+    // all objects in tabview
+    static lv_obj_t * tv;
+
+    tv = lv_tabview_create(lv_screen_active());
+    lv_tabview_set_tab_bar_position(tv, LV_DIR_BOTTOM);
+    lv_tabview_set_tab_bar_size(tv, 30);
+    //lv_obj_add_event_cb(tv, tabview_delete_event_cb, LV_EVENT_DELETE, NULL);
+
+    lv_obj_t * t1 = lv_tabview_add_tab(tv, "Cockpit");
+    lv_obj_t * t2 = lv_tabview_add_tab(tv, "Map");
+    lv_obj_t * t3 = lv_tabview_add_tab(tv, "Settings");
+
+    // set padding to 0 in all tabs
+    lv_obj_set_style_pad_top(t1, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_bottom(t1, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_left(t1, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_right(t1, 0, LV_PART_MAIN);
+
+    lv_obj_set_style_pad_top(t2, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_bottom(t2, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_left(t2, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_right(t2, 0, LV_PART_MAIN);
+
+    lv_obj_set_style_pad_top(t3, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_bottom(t3, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_left(t3, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_right(t3, 0, LV_PART_MAIN);
+
     bsp_display_unlock();
+
+    //***************************
+    // display cockpit and/or map
+    //***************************
+
+    /*cockpit*/  lv_gnss_cockpit_init(t1);
+
+    /*map*/      // Initialize map display
+    /*map*/      map_display_init(t2);
+    /*map*/
+    /*map*/      // Load map for Wilhelmsfeld
+    /*map*/      double lat = 49.47023;
+    /*map*/      double lon = 8.75627;
+    /*map*/      map_display_load_location(lat, lon);
+    /*map*/
+    /*map*/      // Add GPS marker
+    /*map*/      map_display_add_marker(lat, lon);
+
+    /*settings*/  lv_gnss_settings_init(t3, powerOffCb);
+
+    /*cockpit*/  ppsSignal.RegisterCallbackForEvent(BUTTON_SINGLE_CLICK, ppsSignalCb);
 
 /*****/
     // do nothing
