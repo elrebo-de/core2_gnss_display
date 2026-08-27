@@ -31,6 +31,8 @@ GenericUart *gnssUart; // pointer to GenericUart class
 
 std::string tag("CORE2 GNSS Display");
 
+bool sd_card = false; // flag to indicate a mounted SD card
+
 time_t my_timegm_safe(struct tm *tm) {
     // initialize Mutex lazily at first call
     if (tz_mutex == NULL) {
@@ -113,7 +115,7 @@ std::string convert_gnss_date_and_time_to_local(std::string gnssDate, std::strin
 // Callback function for PPS signal from LC76G GNSS Module
 extern "C" void ppsSignalCb(void *arg, void *data)
 {
-    ESP_LOGI(tag.c_str(), "Callback for PPS signal called!");
+    ESP_LOGD(tag.c_str(), "Callback for PPS signal called!");
 
     int i;
 
@@ -303,13 +305,13 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 nrOfSats = std::stoi(numberOfSatellites);
             }
         }
-        ESP_LOGI(tag.c_str(), "speed: %d, angle: %d, alt: %d, latDegMinSec: %s, latDeg: %s, lonDegMinSec: %s, lonDeg: %s, date: %s, time: %s, nrOfSats: %d", speed, angle, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
+        ESP_LOGD(tag.c_str(), "speed: %d, angle: %d, alt: %d, latDegMinSec: %s, latDeg: %s, lonDegMinSec: %s, lonDeg: %s, date: %s, time: %s, nrOfSats: %d", speed, angle, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
 
         // set current timestamp
         if(xdate.length() == 8 && xtime.length() == 8) {
             std::string localTimestamp = convert_gnss_date_and_time_to_local(xdate, xtime);
 
-            ESP_LOGI(tag.c_str(), "Local time: %s", localTimestamp.c_str());
+            ESP_LOGD(tag.c_str(), "Local time: %s", localTimestamp.c_str());
 
             if(localTimestamp.length() >= 19) {
                 xdate = localTimestamp.substr(0,6).append(localTimestamp.substr(8,2));
@@ -320,8 +322,10 @@ extern "C" void ppsSignalCb(void *arg, void *data)
         lv_gnss_cockpit_set_current_values(angle, speed, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
 
         // set marker position in map
-        if(latitudeDeg.length() > 7 && longitudeDeg.length() > 7) {
-            map_display_add_marker(std::stof(latitudeDeg), std::stof(longitudeDeg));
+        if(sd_card) {
+            if(latitudeDeg.length() > 7 && longitudeDeg.length() > 7) {
+                map_display_add_marker(std::stof(latitudeDeg), std::stof(longitudeDeg));
+            }
         }
     }
 }
@@ -441,11 +445,14 @@ extern "C" void app_main(void)
     };
 
     if (bsp_sdcard_sdspi_mount(&sd_cfg) != ESP_OK) {
-        ESP_LOGE(tag.c_str(), "Error mounting SD card!");
-        return;
+        ESP_LOGE(tag.c_str(), "Error mounting SD card -> Map display disabled!");
+        sd_card = false;
+    }
+    else {
+        ESP_LOGI(tag.c_str(), "SD card successfully mounted at %s!", BSP_SD_MOUNT_POINT);
+        sd_card = true;
     }
 
-    ESP_LOGI(tag.c_str(), "SD card successfully mounted at %s!", BSP_SD_MOUNT_POINT);
 
     ESP_LOGI(tag.c_str(), "Configure Display");
 
@@ -492,9 +499,15 @@ extern "C" void app_main(void)
     lv_tabview_set_tab_bar_size(tv, 30);
     //lv_obj_add_event_cb(tv, tabview_delete_event_cb, LV_EVENT_DELETE, NULL);
 
-    lv_obj_t * t1 = lv_tabview_add_tab(tv, "Cockpit");
-    lv_obj_t * t2 = lv_tabview_add_tab(tv, "Map");
-    lv_obj_t * t3 = lv_tabview_add_tab(tv, "Settings");
+    lv_obj_t * t1 = NULL;
+    lv_obj_t * t2 = NULL;
+    lv_obj_t * t3 = NULL;
+
+    t1 = lv_tabview_add_tab(tv, "Cockpit");
+    if (sd_card) {
+        t2 = lv_tabview_add_tab(tv, "Map");
+    }
+    t3 = lv_tabview_add_tab(tv, "Settings");
 
     // set padding to 0 in all tabs
     lv_obj_set_style_pad_top(t1, 0, LV_PART_MAIN);
@@ -502,10 +515,12 @@ extern "C" void app_main(void)
     lv_obj_set_style_pad_left(t1, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_right(t1, 0, LV_PART_MAIN);
 
-    lv_obj_set_style_pad_top(t2, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_bottom(t2, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_left(t2, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_right(t2, 0, LV_PART_MAIN);
+    if(sd_card) {
+        lv_obj_set_style_pad_top(t2, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_bottom(t2, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_left(t2, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_right(t2, 0, LV_PART_MAIN);
+    }
 
     lv_obj_set_style_pad_top(t3, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_bottom(t3, 0, LV_PART_MAIN);
@@ -520,16 +535,21 @@ extern "C" void app_main(void)
 
     /*cockpit*/  lv_gnss_cockpit_init(t1);
 
-    /*map*/      // Initialize map display
-    /*map*/      map_display_init(t2);
-    /*map*/
-    /*map*/      // Load map for Wilhelmsfeld
-    /*map*/      double lat = 49.47023;
-    /*map*/      double lon = 8.75627;
-    /*map*/      map_display_load_location(lat, lon);
-    /*map*/
-    /*map*/      // Add GPS marker
-    /*map*/      map_display_add_marker(lat, lon);
+    if(sd_card) {
+        /*map*/      // Initialize map display
+        /*map*/      map_display_init(t2);
+        /*map*/
+        /*map*/      // Load map for Wilhelmsfeld
+        /*map*/      //double lat = 49.47023;
+        /*map*/      //double lon = 8.75627;
+                     // Load map for position without map tiles for testing
+        /*map*/      double lat = 52.47023;
+        /*map*/      double lon = 9.75627;
+        /*map*/      map_display_load_location(lat, lon);
+        /*map*/
+        /*map*/      // Add GPS marker
+        /*map*/      map_display_add_marker(lat, lon);
+    }
 
     /*settings*/  lv_gnss_settings_init(t3, powerOffCb);
 

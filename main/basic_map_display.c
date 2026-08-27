@@ -12,6 +12,7 @@ static map_tiles_handle_t map_handle = NULL;
 static lv_obj_t* map_container = NULL;
 static lv_obj_t** tile_images = NULL;  // Dynamic array for configurable grid
 static int grid_cols = 0, grid_rows = 0, tile_count = 0;
+static lv_obj_t * copyright = NULL;
 
 /**
  * @brief Initialize the map display
@@ -92,14 +93,13 @@ void map_display_init(lv_obj_t * parent)
  */
 void map_display_load_location(double lat, double lon)
 {
-    bsp_display_lock(0);
-
     if (!map_handle) {
         ESP_LOGE(TAG, "Map not initialized");
-        bsp_display_unlock();
         return;
     }
     
+    bsp_display_lock(0);
+
     ESP_LOGI(TAG, "Loading map for GPS: %.6f, %.6f", lat, lon);
     
     // Set center from GPS coordinates
@@ -109,13 +109,17 @@ void map_display_load_location(double lat, double lon)
     int base_tile_x, base_tile_y;
     map_tiles_get_position(map_handle, &base_tile_x, &base_tile_y);
 
-    // pause display refresh timer
-    // Get the current active display
-    lv_display_t * disp = lv_display_get_default();
-    // GET the refresh timer pointer using the official API function
-    lv_timer_t * refr_timer = lv_display_get_refr_timer(disp);
-    // Pause the display's internal refreshing timer safely
-    lv_timer_pause(refr_timer);
+    // pause all LVGL timers globally
+    lv_timer_enable(false);
+
+    ///////    // pause display refresh timer
+    ///////    // Get the current active display
+    ///////    lv_display_t * disp = lv_display_get_default();
+    ///////    // GET the refresh timer pointer using the official API function
+    ///////    lv_timer_t * refr_timer = lv_display_get_refr_timer(disp);
+    ///////    // Pause the display's internal refreshing timer safely
+    ///////    lv_timer_pause(refr_timer);
+
     bsp_display_unlock();
 
     // Load tiles in a configurable grid
@@ -147,12 +151,16 @@ void map_display_load_location(double lat, double lon)
     }
     
     bsp_display_lock(0);
-    // resume display refresh timer
-    // Force coordinates to calculate before making it visible
-    lv_obj_update_layout(lv_screen_active());
-    // Resume refreshing and trigger an immediate redraw
-    lv_timer_resume(refr_timer);
-    lv_obj_invalidate(lv_screen_active());
+
+    // resume all LVGL timers globally
+    lv_timer_enable(true);
+
+    ///////      // resume display refresh timer
+    ///////      // Force coordinates to calculate before making it visible
+    ///////      lv_obj_update_layout(lv_screen_active());
+    ///////      // Resume refreshing and trigger an immediate redraw
+    ///////      lv_timer_resume(refr_timer);
+    ///////      lv_obj_invalidate(lv_screen_active());
 
     bsp_display_unlock();
 
@@ -312,6 +320,17 @@ void map_display_add_marker(double lat, double lon)
     // Use LV_ANIM_ON if you want a smooth sliding transition on load
     lv_obj_scroll_to(map_container, marker_x - width/2, marker_y - height/2, LV_ANIM_OFF);
 
+    LV_FONT_DECLARE(my_montserrat_14);
+    // Copyright notice
+    if(copyright == NULL) {
+        copyright = lv_label_create(lv_obj_get_parent(map_container));
+        lv_obj_set_width(copyright, width);
+        lv_obj_set_height(copyright, 15);
+        lv_obj_set_style_text_font(copyright, &my_montserrat_14, 0);
+        lv_label_set_text(copyright, "© OpenStreetMap Contributors ");
+        lv_obj_set_style_text_align(copyright, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_pos(copyright, 0, height - 15);
+    }
     bsp_display_unlock();
  }
 

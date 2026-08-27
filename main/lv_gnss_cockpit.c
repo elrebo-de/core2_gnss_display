@@ -231,7 +231,7 @@ void lv_gnss_cockpit_init(lv_obj_t *parent)
 
     // uhrzeit
     uhrzeit = lv_label_create(parent);
-    lv_obj_set_width(uhrzeit, 140);
+    lv_obj_set_width(uhrzeit, 150);
     lv_obj_set_height(uhrzeit, 15);
     // x: 0 + Rand
     // y: 30 + Rand

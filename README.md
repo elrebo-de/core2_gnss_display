@@ -105,14 +105,13 @@ I (9623) CORE2 GNSS Display: Callback for PPS signal called!
 I (9723) CORE2 GNSS Display: speed: 1, angle: 181, alt: 410, latDegMinSec: 49°28'11.8452"N, latDeg: 49.46995544, lonDegMinSec: 008°45'21.2702"E, lonDeg: 008.75590801, date: 25.08.26, time: 22:10:30, nrOfSats: 10                                                                                                                                               
 I (9733) CORE2 GNSS Display: Local time: 26.08.2026 00:10:30 CEST
 I (10623) CORE2 GNSS Display: Callback for PPS signal called!
-I (10723) CORE2 GNSS Display: speed: 1, angle: 200, alt: 410, latDegMinSec: 49°28'11.8570"N, latDeg: 49.46995926, lonDegMinSec: 008°45'21.2777"E, lonDeg: 008.75591087, date: 25.08.26, time: 22:10:31, nrOfSats: 11                                                                                                                                              
-I (10733) CORE2 GNSS Display: Local time: 26.08.2026 00:10:31 CEST
-I (
+I (10723) CORE2 GNSS Display: speed: 1, angle: 200, alt: 410, latDegMinSec: 49°28'11.8570"N, latDeg: 49.46995926, lonDegMinSec: 008°45'21.2777"E, lonDeg: 008.75591087, date: 25.08.26, time: 22:10:31, nrOfSats: 11                                                   
 ```
 
 # Known problems
 
-* Currently the zoom for the map display and the initial coordinates have to be set in the program code.
+* currently, the zoom for the map display and the initial coordinates have to be set in the program code
+* system crashes when position moves out of range of available map tiles
 
 # Next steps
 
@@ -120,11 +119,8 @@ I (
 
 ## Cockpit view
 
-* adjust Time field length to prevent line break of timezone
-
 ## Map view
 
-* add Copyright note for OSM maps
 * add + and - Buttons to switch zoom level
 
 ## Settings view
