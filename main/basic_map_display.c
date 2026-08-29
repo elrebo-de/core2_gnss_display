@@ -27,7 +27,7 @@ void map_display_init(lv_obj_t * parent)
         .tile_type_count = 1,
         .grid_cols = 3,          // 5x5 grid (configurable)
         .grid_rows = 3,
-        .default_zoom = 17,
+        .default_zoom = 16,
         .use_spiram = true,
         .default_tile_type = 0,  // Start with street map
     };
@@ -318,7 +318,7 @@ void map_display_add_marker(double lat, double lon)
 
     // Scroll the window panel itself to the center the marker position
     // Use LV_ANIM_ON if you want a smooth sliding transition on load
-    lv_obj_scroll_to(map_container, marker_x - width/2, marker_y - height/2, LV_ANIM_OFF);
+    lv_obj_scroll_to(map_container, marker_x - width/2, marker_y - height/2, LV_ANIM_ON);
 
     LV_FONT_DECLARE(my_montserrat_14);
     // Copyright notice
