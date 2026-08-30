@@ -50,9 +50,9 @@ void update_battery(battery_indicator_t * battery, int32_t percentage, bool is_c
     // 3. Update the text label string
     char buf[16];
     if (is_charging) {
-        snprintf(buf, sizeof(buf), "%"   LV_PRId32 "%% >>", percentage);
+        snprintf(buf, sizeof(buf), "%ld%% >>", percentage);
     } else {
-        snprintf(buf, sizeof(buf), "%" LV_PRId32 "%%", percentage);
+        snprintf(buf, sizeof(buf), "%ld%%", percentage);
     }
     lv_label_set_text(battery->label, buf);
 }

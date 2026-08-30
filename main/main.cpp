@@ -25,7 +25,8 @@ static SemaphoreHandle_t tz_mutex = NULL;
 #include "generic_uart.hpp"
 GenericUart *gnssUart; // pointer to GenericUart class
 
-#include "driver/i2c_master.h"
+#include "i2c_master.hpp"
+I2cMaster* i2c = NULL;
 
 #define LOG_MEM_INFO (0)
 
@@ -330,11 +331,6 @@ extern "C" void ppsSignalCb(void *arg, void *data)
     }
 }
 
-// The AXP2101 default I2C slave address
-#define AXP2101_I2C_ADDR   0x34
-
-i2c_master_dev_handle_t axp_dev_handle;
-
 // Callback-Funktion für den PowerOff Button click
 extern "C" void powerOffCb(lv_event_t * e)
 {
@@ -347,6 +343,8 @@ extern "C" void powerOffCb(lv_event_t * e)
     vTaskDelay(500 / portTICK_PERIOD_MS); // delay 0.5 seconds
 
     // AXP2101: VBUS trennen und PowerOff
+    i2c_master_dev_handle_t axp_dev_handle = i2c->GetDeviceHandle("AXP2101");
+
     uint8_t disconnectVbus[2] = {0x18, 0x01};
     ESP_ERROR_CHECK(i2c_master_transmit(axp_dev_handle, disconnectVbus, 2, -1));
     vTaskDelay(100 / portTICK_PERIOD_MS); // delay 0.1 seconds
@@ -365,25 +363,6 @@ esp_vfs_fat_sdmmc_mount_config_t mount_config = {
     .max_files = 5,                       // Must allow at least 2-3 open files for map streaming
     .allocation_unit_size = 16 * 1024     // Large allocation units optimize binary streaming
 };
-
-// The read_register target function
-uint8_t read_register(i2c_master_dev_handle_t axp_dev_handle, uint8_t reg_addr) {
-    uint8_t data_val = 0;
-
-    // Transmit register target address, then immediately capture 1 returned byte
-    esp_err_t err = i2c_master_transmit_receive(
-        axp_dev_handle,
-        &reg_addr, 1,
-        &data_val, 1,
-        -1
-    );
-
-    if (err != ESP_OK) {
-        ESP_LOGE("AXP2101", "I2C read failed at reg 0x%02X: %s", reg_addr, esp_err_to_name(err));
-        return 0;
-    }
-    return data_val;
-}
 
 extern "C" void app_main(void)
 {
@@ -457,21 +436,21 @@ extern "C" void app_main(void)
     ESP_LOGI(tag.c_str(), "AXP2101 PMU Detected (M5Stack Core2 v1.1)");
     #endif
 
-    // 2. Fetch the native ESP-IDF driver master bus handle
-    i2c_master_bus_handle_t i2c_bus = bsp_i2c_get_handle();
+    /* Configure the I2C Master Bus */
+    ESP_LOGI(tag.c_str(), "I2cMaster");
+    // set i2c_master_bus_handle from already initialized i2c_master_bus
+    i2c = new I2cMaster(std::string("I2C Master Bus"), bsp_i2c_get_handle());
 
-    // 3. Register the AXP2101 device wrapper context onto the active bus
-    i2c_device_config_t dev_cfg = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address = AXP2101_I2C_ADDR,
-        .scl_speed_hz = 400000, // Standard 400kHz I2C speed
-    };
-
-    esp_err_t ret = i2c_master_bus_add_device(i2c_bus, &dev_cfg, &axp_dev_handle);
-    if (ret != ESP_OK) {
-        ESP_LOGE(tag.c_str(), "Failed to add AXP2101 device to the I2C master bus");
-        return;
-    }
+    // Add the AXP2101 PMU device
+    ESP_LOGI(tag.c_str(), "I2cDevice AXP2101 PMU");
+    i2c->AddDevice(new I2cDevice(
+        std::string("AXP2101 PMU"), // tag
+        std::string("AXP2101"), // deviceName
+        (i2c_addr_bit_len_t) I2C_ADDR_BIT_LEN_7, // devAddrLength
+        (uint16_t) 0x34, // deviceAddress
+        (uint32_t) 400000 // sclSpeedHz
+        )
+    );
 
     ESP_LOGI(tag.c_str(), "AXP2101 I2C interface successfully established via esp_bsp!");
 
@@ -579,23 +558,22 @@ extern "C" void app_main(void)
 /*****/
     // do nothing
     while(1) {
-        uint8_t msb = read_register(axp_dev_handle, 0x34);
-        uint8_t lsb = read_register(axp_dev_handle, 0x35);
+        I2cDevice *device = i2c->GetDevice("AXP2101");
+
+        uint8_t msb = device->ReadRegister(0x34);
+        uint8_t lsb = device->ReadRegister(0x35);
 
         uint16_t battery_voltage_mv = (msb << 8) | (lsb);
 
-        uint8_t battery_percentage = read_register(axp_dev_handle, 0xA4); // Value directly represents %
+        uint8_t battery_percentage = device->ReadRegister(0xA4); // Value directly represents %
 
-        uint8_t status_reg = read_register(axp_dev_handle, 0x01);
+        uint8_t status_reg = device->ReadRegister(0x01);
         uint8_t charge_status = status_reg & 0x07;
 
-        ESP_LOGI(tag.c_str(), "Charge State: %d", charge_status);
-
         // It is actively charging if the status state is between 0 and 3
-        bool is_charging = (charge_status >= 0 && charge_status <= 3);
+        bool is_charging = (charge_status <= 3);
 
-        ESP_LOGI(tag.c_str(), "Battery Voltage: %d mV", battery_voltage_mv);
-        ESP_LOGI(tag.c_str(), "Charge State: %s (%d %%)", is_charging ? "Charging" : "Discharging", battery_percentage);
+        ESP_LOGI(tag.c_str(), "Battery Voltage: %d mV, Charge State: %s(%d) (%d %%)", battery_voltage_mv, is_charging ? "Charging" : "Discharging", charge_status, battery_percentage);
 
         lv_gnss_settings_set_battery_values(battery_percentage, is_charging);
 
