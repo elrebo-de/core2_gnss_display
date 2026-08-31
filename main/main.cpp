@@ -338,18 +338,19 @@ extern "C" void powerOffCb(lv_event_t * e)
     if(code == LV_EVENT_CLICKED) {
         ESP_LOGI(tag.c_str(), "PowerOff button clicked!");
 
-    ESP_LOGI(tag.c_str(), "Power Off!");
-    // wait a moment ...
-    vTaskDelay(500 / portTICK_PERIOD_MS); // delay 0.5 seconds
+        ESP_LOGI(tag.c_str(), "Power Off!");
+        // wait a moment ...
+        vTaskDelay(500 / portTICK_PERIOD_MS); // delay 0.5 seconds
 
-    // AXP2101: VBUS trennen und PowerOff
-    i2c_master_dev_handle_t axp_dev_handle = i2c->GetDeviceHandle("AXP2101");
-
-    uint8_t disconnectVbus[2] = {0x18, 0x01};
-    ESP_ERROR_CHECK(i2c_master_transmit(axp_dev_handle, disconnectVbus, 2, -1));
-    vTaskDelay(100 / portTICK_PERIOD_MS); // delay 0.1 seconds
-    uint8_t powerOff[2] = {0x10, 0x31};
-    ESP_ERROR_CHECK(i2c_master_transmit(axp_dev_handle, powerOff, 2, -1));
+        // AXP2101: VBUS trennen und PowerOff
+        I2cDevice *device = i2c->GetDevice("AXP2101");
+        // disconnectVbus
+        uint8_t disconnectVbus[2] = {0x18, 0x0f};
+        ESP_ERROR_CHECK(device->Write(disconnectVbus, 2));
+        vTaskDelay(100 / portTICK_PERIOD_MS); // delay 0.1 seconds
+        // powerOff
+        uint8_t powerOff[2] = {0x10, 0x31};
+        ESP_ERROR_CHECK(device->Write(powerOff, 2));
     }
 }
 
@@ -412,6 +413,8 @@ extern "C" void app_main(void)
     ESP_LOGI(tag.c_str(), "Configure SD card");
     // Initialise BSP (incl. I2C/PMU)
     ESP_ERROR_CHECK(bsp_i2c_init());
+
+    vTaskDelay(150 / portTICK_PERIOD_MS); // delay 150 ms before using i2c
 
     // integrate SD card via SPI
     bsp_sdcard_cfg_t sd_cfg = {
