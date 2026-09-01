@@ -40,6 +40,8 @@ static lv_obj_t** tile_images = NULL;  // Dynamic array for configurable grid
 static lv_obj_t** tile_borders = NULL;  // Dynamic array for configurable grid
 static int grid_cols = 0, grid_rows = 0, tile_count = 0;
 static lv_obj_t * copyright = NULL;
+static lv_obj_t * plusButton = NULL;
+static lv_obj_t * minusButton = NULL;
 
 // additional function for map_tiles
 bool map_tiles_is_gps_within_inner_half_of_outer_tiles(map_tiles_handle_t handle, double lat, double lon)
@@ -169,21 +171,19 @@ void map_display_init(lv_obj_t * parent)
         lv_obj_set_style_pad_all(tile_borders[i], 0, 0);
     }
     // create border for half of outer tiles
-        tile_borders[tile_count] = lv_obj_create(map_container);
-
-        // Position border in grid
-         lv_obj_set_pos(tile_borders[tile_count],
-                      MAP_TILES_TILE_SIZE / 2,
-                      MAP_TILES_TILE_SIZE / 2);
-        lv_obj_set_size(tile_borders[tile_count], (grid_cols - 1) * MAP_TILES_TILE_SIZE, (grid_rows - 1) * MAP_TILES_TILE_SIZE);
-        lv_obj_set_style_bg_opa(tile_borders[tile_count], LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(tile_borders[tile_count], 2, 0); // 3-pixel thick border
-        lv_obj_set_style_border_color(tile_borders[tile_count], lv_palette_main(LV_PALETTE_GREEN), 0);
-        lv_obj_set_style_pad_all(tile_borders[tile_count], 0, 0);
+    tile_borders[tile_count] = lv_obj_create(map_container);
+    // Position border in grid
+     lv_obj_set_pos(tile_borders[tile_count],
+                  MAP_TILES_TILE_SIZE / 2,
+                  MAP_TILES_TILE_SIZE / 2);
+    lv_obj_set_size(tile_borders[tile_count], (grid_cols - 1) * MAP_TILES_TILE_SIZE, (grid_rows - 1) * MAP_TILES_TILE_SIZE);
+    lv_obj_set_style_bg_opa(tile_borders[tile_count], LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(tile_borders[tile_count], 2, 0); // 3-pixel thick border
+    lv_obj_set_style_border_color(tile_borders[tile_count], lv_palette_main(LV_PALETTE_GREEN), 0);
+    lv_obj_set_style_pad_all(tile_borders[tile_count], 0, 0);
 
 
     bsp_display_unlock();
-
     ESP_LOGI(TAG, "Map display initialized");
 }
 
@@ -251,7 +251,8 @@ void map_display_load_location(double lat, double lon)
             }
         }
     }
-    
+    map_display_add_marker(lat, lon);
+
     bsp_display_lock(0);
 
     // resume all LVGL timers globally
@@ -333,6 +334,35 @@ void map_display_set_zoom(int zoom, double lat, double lon)
     map_display_load_location(lat, lon);
 }
 
+// Callback-Funktion für den PowerOff Button click
+void plusButtonCb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if(code == LV_EVENT_CLICKED) {
+        ESP_LOGI(TAG, "PlusButton clicked!");
+
+        ESP_LOGI(TAG, "Zoom in!");
+        double lat;
+        double lon;
+        map_tiles_get_center_gps(map_handle, &lat, &lon);
+        map_display_set_zoom(map_tiles_get_zoom(map_handle) + 1, lat, lon);
+    }
+}
+
+void minusButtonCb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if(code == LV_EVENT_CLICKED) {
+        ESP_LOGI(TAG, "MinusButton clicked!");
+
+        ESP_LOGI(TAG, "Zoom out!");
+        double lat;
+        double lon;
+        map_tiles_get_center_gps(map_handle, &lat, &lon);
+        map_display_set_zoom(map_tiles_get_zoom(map_handle) - 1, lat, lon);
+    }
+}
+
 /**
  * @brief Add a GPS marker to the map
  * 
@@ -348,6 +378,9 @@ void map_display_add_marker(double lat, double lon)
         return;
     }
     
+    // update coordinates
+    lv_obj_update_layout(lv_screen_active());
+
     // Check if GPS position is within inner half of outer tiles
     if (!map_tiles_is_gps_within_inner_half_of_outer_tiles(map_handle, lat, lon)) {
         bsp_display_unlock();
@@ -355,8 +388,6 @@ void map_display_add_marker(double lat, double lon)
         // if not, load tiles for location
         map_display_load_location(lat, lon);
         bsp_display_lock(0);
-        // update coordinates
-        //lv_obj_update_layout(lv_screen_active());
     }
 
     // Convert GPS to tile coordinates
@@ -432,6 +463,36 @@ void map_display_add_marker(double lat, double lon)
         lv_label_set_text(copyright, "© OpenStreetMap Contributors ");
         lv_obj_set_style_text_align(copyright, LV_TEXT_ALIGN_RIGHT, 0);
         lv_obj_set_pos(copyright, 0, height - 15);
+    }
+
+    // + button
+    if(plusButton == NULL) {
+        plusButton = lv_btn_create(lv_obj_get_parent(map_container));
+        lv_obj_set_pos(plusButton, 270, 10);
+        lv_obj_set_size(plusButton, 40, 40);
+
+        // Event-Callback an den Button hängen
+        lv_obj_add_event_cb(plusButton, plusButtonCb, LV_EVENT_ALL, NULL);
+
+        // Text auf dem Button platzieren
+        lv_obj_t * label = lv_label_create(plusButton);
+        lv_label_set_text(label, "+");
+        lv_obj_center(label);
+    }
+
+    // - button
+    if(minusButton == NULL) {
+        minusButton = lv_btn_create(lv_obj_get_parent(map_container));
+        lv_obj_set_pos(minusButton, 270, 150);
+        lv_obj_set_size(minusButton, 40, 40);
+
+        // Event-Callback an den Button hängen
+        lv_obj_add_event_cb(minusButton, minusButtonCb, LV_EVENT_ALL, NULL);
+
+        // Text auf dem Button platzieren
+        lv_obj_t * label = lv_label_create(minusButton);
+        lv_label_set_text(label, "-");
+        lv_obj_center(label);
     }
     bsp_display_unlock();
  }
