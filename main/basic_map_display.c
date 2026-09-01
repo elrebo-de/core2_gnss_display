@@ -144,7 +144,7 @@ void map_display_init(lv_obj_t * parent)
     }
 
     // Allocate tile borders array
-    tile_borders = malloc(tile_count * sizeof(lv_obj_t*));
+    tile_borders = malloc((tile_count+1) * sizeof(lv_obj_t*));
     if (!tile_borders) {
         ESP_LOGE(TAG, "Failed to allocate tile borders array");
         map_tiles_cleanup(map_handle);
@@ -164,10 +164,23 @@ void map_display_init(lv_obj_t * parent)
                       row * MAP_TILES_TILE_SIZE);
         lv_obj_set_size(tile_borders[i], MAP_TILES_TILE_SIZE, MAP_TILES_TILE_SIZE);
         lv_obj_set_style_bg_opa(tile_borders[i], LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(tile_borders[i], 3, 0); // 3-pixel thick border
-        lv_obj_set_style_border_color(tile_borders[i], lv_palette_main(LV_PALETTE_RED), 0);
+        lv_obj_set_style_border_width(tile_borders[i], 1, 0); // 3-pixel thick border
+        lv_obj_set_style_border_color(tile_borders[i], lv_palette_main(LV_PALETTE_GREY), 0);
         lv_obj_set_style_pad_all(tile_borders[i], 0, 0);
     }
+    // create border for half of outer tiles
+        tile_borders[tile_count] = lv_obj_create(map_container);
+
+        // Position border in grid
+         lv_obj_set_pos(tile_borders[tile_count],
+                      MAP_TILES_TILE_SIZE / 2,
+                      MAP_TILES_TILE_SIZE / 2);
+        lv_obj_set_size(tile_borders[tile_count], (grid_cols - 1) * MAP_TILES_TILE_SIZE, (grid_rows - 1) * MAP_TILES_TILE_SIZE);
+        lv_obj_set_style_bg_opa(tile_borders[tile_count], LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(tile_borders[tile_count], 2, 0); // 3-pixel thick border
+        lv_obj_set_style_border_color(tile_borders[tile_count], lv_palette_main(LV_PALETTE_GREEN), 0);
+        lv_obj_set_style_pad_all(tile_borders[tile_count], 0, 0);
+
 
     bsp_display_unlock();
 
@@ -335,16 +348,16 @@ void map_display_add_marker(double lat, double lon)
         return;
     }
     
-    // Check if GPS position is within current tiles
+    // Check if GPS position is within inner half of outer tiles
     if (!map_tiles_is_gps_within_inner_half_of_outer_tiles(map_handle, lat, lon)) {
         bsp_display_unlock();
         ESP_LOGW(TAG, "GPS position outside inner half of outer tiles, reloading map");
+        // if not, load tiles for location
         map_display_load_location(lat, lon);
-        return;
+        bsp_display_lock(0);
+        // update coordinates
+        //lv_obj_update_layout(lv_screen_active());
     }
-
-    // update coordinates
-    //lv_obj_update_layout(lv_screen_active());
 
     // Convert GPS to tile coordinates
     double tile_x, tile_y;
