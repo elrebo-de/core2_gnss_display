@@ -6,13 +6,76 @@
 static char *TAG = "basic_map_display";
 
 // Map tiles handle
+// Internal structure for map tiles instance
+struct map_tiles_t {
+    // Configuration
+    char* base_path;
+    char* tile_folders[MAP_TILES_MAX_TYPES];
+    int tile_type_count;
+    int current_tile_type;
+    int grid_cols;
+    int grid_rows;
+    int tile_count;
+    int zoom;
+    bool use_spiram;
+    bool initialized;
+
+    // Tile management
+    int tile_x;
+    int tile_y;
+    int marker_offset_x;
+    int marker_offset_y;
+    bool tile_loading_error;
+
+    // Tile data - arrays will be allocated dynamically based on actual grid size
+    uint8_t** tile_bufs;
+    lv_image_dsc_t* tile_imgs;
+};
+
 static map_tiles_handle_t map_handle = NULL;
 
 // LVGL objects for displaying tiles
 static lv_obj_t* map_container = NULL;
 static lv_obj_t** tile_images = NULL;  // Dynamic array for configurable grid
+static lv_obj_t** tile_borders = NULL;  // Dynamic array for configurable grid
 static int grid_cols = 0, grid_rows = 0, tile_count = 0;
 static lv_obj_t * copyright = NULL;
+
+// additional function for map_tiles
+bool map_tiles_is_gps_within_inner_half_of_outer_tiles(map_tiles_handle_t handle, double lat, double lon)
+{
+    if (!handle || !handle->initialized) {
+        return false;
+    }
+
+    double x, y;
+    map_tiles_gps_to_tile_xy(handle, lat, lon, &x, &y);
+
+    int gps_tile_x = (int)x;
+    int gps_tile_y = (int)y;
+
+    // Calculate pixel offset within the tile
+    int offset_x = (int)((x - (int)x) * MAP_TILES_TILE_SIZE);
+    int offset_y = (int)((y - (int)y) * MAP_TILES_TILE_SIZE);
+
+    bool within_x = (gps_tile_x >= handle->tile_x && gps_tile_x < handle->tile_x + handle->grid_cols);
+    if(gps_tile_x == handle->tile_x) {
+        if(offset_x <= MAP_TILES_TILE_SIZE / 2) within_x = false;
+    }
+    else if(gps_tile_x == handle->tile_x + handle->grid_cols - 1) {
+        if(offset_x >= MAP_TILES_TILE_SIZE / 2) within_x = false;
+    }
+
+    bool within_y = (gps_tile_y >= handle->tile_y && gps_tile_y < handle->tile_y + handle->grid_rows);
+        if(gps_tile_y == handle->tile_y) {
+        if(offset_y <= MAP_TILES_TILE_SIZE / 2) within_y = false;
+    }
+    else if(gps_tile_y == handle->tile_y + handle->grid_cols - 1) {
+        if(offset_y >= MAP_TILES_TILE_SIZE / 2) within_y = false;
+    }
+
+    return within_x && within_y;
+}
 
 /**
  * @brief Initialize the map display
@@ -79,7 +142,33 @@ void map_display_init(lv_obj_t * parent)
                       row * MAP_TILES_TILE_SIZE);
         lv_obj_set_size(tile_images[i], MAP_TILES_TILE_SIZE, MAP_TILES_TILE_SIZE);
     }
-    
+
+    // Allocate tile borders array
+    tile_borders = malloc(tile_count * sizeof(lv_obj_t*));
+    if (!tile_borders) {
+        ESP_LOGE(TAG, "Failed to allocate tile borders array");
+        map_tiles_cleanup(map_handle);
+        bsp_display_unlock();
+        return;
+    }
+
+    // Create border widgets for each tile
+    for (int i = 0; i < tile_count; i++) {
+        tile_borders[i] = lv_obj_create(map_container);
+
+        // Position border in grid
+        int row = i / grid_cols;
+        int col = i % grid_cols;
+        lv_obj_set_pos(tile_borders[i],
+                      col * MAP_TILES_TILE_SIZE,
+                      row * MAP_TILES_TILE_SIZE);
+        lv_obj_set_size(tile_borders[i], MAP_TILES_TILE_SIZE, MAP_TILES_TILE_SIZE);
+        lv_obj_set_style_bg_opa(tile_borders[i], LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(tile_borders[i], 3, 0); // 3-pixel thick border
+        lv_obj_set_style_border_color(tile_borders[i], lv_palette_main(LV_PALETTE_RED), 0);
+        lv_obj_set_style_pad_all(tile_borders[i], 0, 0);
+    }
+
     bsp_display_unlock();
 
     ESP_LOGI(TAG, "Map display initialized");
@@ -247,9 +336,9 @@ void map_display_add_marker(double lat, double lon)
     }
     
     // Check if GPS position is within current tiles
-    if (!map_tiles_is_gps_within_tiles(map_handle, lat, lon)) {
+    if (!map_tiles_is_gps_within_inner_half_of_outer_tiles(map_handle, lat, lon)) {
         bsp_display_unlock();
-        ESP_LOGW(TAG, "GPS position outside current tiles, reloading map");
+        ESP_LOGW(TAG, "GPS position outside inner half of outer tiles, reloading map");
         map_display_load_location(lat, lon);
         return;
     }
