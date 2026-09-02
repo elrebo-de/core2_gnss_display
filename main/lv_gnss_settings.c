@@ -10,12 +10,12 @@ static battery_indicator_t battery_ui;
 
 void lv_gnss_settings_init(lv_obj_t *parent, lv_event_cb_t powerOffCb)
 {
-    bsp_display_lock(0);
+    bsp_display_lock(-1);
 
     // "Off" button
     btn = lv_btn_create(parent);
-    lv_obj_set_pos(btn, 10, 20);
-    lv_obj_set_size(btn, 70, 50);
+    lv_obj_set_pos(btn, 10, 10);
+    lv_obj_set_size(btn, 60, 40);
 
     // Event-Callback an den Button hängen
     lv_obj_add_event_cb(btn, powerOffCb, LV_EVENT_ALL, NULL);
@@ -25,14 +25,16 @@ void lv_gnss_settings_init(lv_obj_t *parent, lv_event_cb_t powerOffCb)
     lv_label_set_text(label, "Off");
     lv_obj_center(label);
 
+    bsp_display_unlock();
+
     // battery indicator
     create_battery_indicator(parent);
-
-    bsp_display_unlock();
 }
 
 void update_battery(battery_indicator_t * battery, int32_t percentage, bool is_charging)
 {
+    bsp_display_lock(-1);
+
     // 1. Update the bar fill level smoothly
     lv_bar_set_value(battery->bar, percentage, LV_ANIM_ON);
 
@@ -55,15 +57,18 @@ void update_battery(battery_indicator_t * battery, int32_t percentage, bool is_c
         snprintf(buf, sizeof(buf), "%ld%%", percentage);
     }
     lv_label_set_text(battery->label, buf);
+
+    bsp_display_unlock();
 }
 
 void create_battery_indicator(lv_obj_t * parent)
 {
+    bsp_display_lock(-1);
     /* 1. Create a container for the battery layout */
     lv_obj_t * battery_cont = lv_obj_create(parent);
     lv_obj_remove_style_all(battery_cont);
     lv_obj_set_size(battery_cont, 91, 40);
-    lv_obj_center(battery_cont);
+    lv_obj_align(battery_cont, LV_ALIGN_TOP_RIGHT, -10 , 10);
 
     /* 2. Create the positive terminal tip on the right edge */
     lv_obj_t * tip = lv_obj_create(battery_cont);
@@ -97,6 +102,8 @@ void create_battery_indicator(lv_obj_t * parent)
     lv_obj_set_style_text_color(battery_ui.label, lv_color_white(), LV_PART_MAIN);
     // Use standard micro fonts (like montserrat_12 or 14) depending on your lv_conf.h
     lv_obj_set_style_text_font(battery_ui.label, &lv_font_montserrat_14, LV_PART_MAIN);
+
+    bsp_display_unlock();
 
     /* Set initial runtime test values (65% power, not charging) */
     update_battery(&battery_ui, 65, false);

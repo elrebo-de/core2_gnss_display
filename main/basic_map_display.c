@@ -97,7 +97,7 @@ void map_display_init(lv_obj_t * parent)
         .default_tile_type = 0,  // Start with street map
     };
 
-    bsp_display_lock(0);
+    bsp_display_lock(-1);
 
     // Initialize map tiles
     map_handle = map_tiles_init(&config);
@@ -182,8 +182,8 @@ void map_display_init(lv_obj_t * parent)
     lv_obj_set_style_border_color(tile_borders[tile_count], lv_palette_main(LV_PALETTE_GREEN), 0);
     lv_obj_set_style_pad_all(tile_borders[tile_count], 0, 0);
 
-
     bsp_display_unlock();
+
     ESP_LOGI(TAG, "Map display initialized");
 }
 
@@ -200,7 +200,7 @@ void map_display_load_location(double lat, double lon)
         return;
     }
     
-    bsp_display_lock(0);
+    bsp_display_lock(-1);
 
     ESP_LOGI(TAG, "Loading map for GPS: %.6f, %.6f", lat, lon);
     
@@ -213,15 +213,6 @@ void map_display_load_location(double lat, double lon)
 
     // pause all LVGL timers globally
     lv_timer_enable(false);
-
-    ///////    // pause display refresh timer
-    ///////    // Get the current active display
-    ///////    lv_display_t * disp = lv_display_get_default();
-    ///////    // GET the refresh timer pointer using the official API function
-    ///////    lv_timer_t * refr_timer = lv_display_get_refr_timer(disp);
-    ///////    // Pause the display's internal refreshing timer safely
-    ///////    lv_timer_pause(refr_timer);
-
     bsp_display_unlock();
 
     // Load tiles in a configurable grid
@@ -233,38 +224,30 @@ void map_display_load_location(double lat, double lon)
             
             // Load the tile
             bool loaded = map_tiles_load_tile(map_handle, index, tile_x, tile_y);
+
+            bsp_display_lock(-1);
+
             if (loaded) {
-                bsp_display_lock(0);
                 // Update the image widget
                 lv_image_dsc_t* img_dsc = map_tiles_get_image(map_handle, index);
                 if (img_dsc) {
                     lv_image_set_src(tile_images[index], img_dsc);
                     ESP_LOGI(TAG, "Loaded tile %d (%d, %d)", index, tile_x, tile_y);
                 }
-                bsp_display_unlock();
             } else {
                 ESP_LOGW(TAG, "Failed to load tile %d (%d, %d)", index, tile_x, tile_y);
                 // Set a placeholder or clear the image
-                bsp_display_lock(0);
                 lv_image_set_src(tile_images[index], NULL);
-                bsp_display_unlock();
             }
+
+            bsp_display_unlock();
         }
     }
     map_display_add_marker(lat, lon);
 
-    bsp_display_lock(0);
-
     // resume all LVGL timers globally
+    bsp_display_lock(-1);
     lv_timer_enable(true);
-
-    ///////      // resume display refresh timer
-    ///////      // Force coordinates to calculate before making it visible
-    ///////      lv_obj_update_layout(lv_screen_active());
-    ///////      // Resume refreshing and trigger an immediate redraw
-    ///////      lv_timer_resume(refr_timer);
-    ///////      lv_obj_invalidate(lv_screen_active());
-
     bsp_display_unlock();
 
     ESP_LOGI(TAG, "Map tiles loaded for location");
@@ -279,7 +262,7 @@ void map_display_load_location(double lat, double lon)
  */
 void map_display_set_tile_type(int tile_type, double lat, double lon)
 {
-    bsp_display_lock(0);
+    bsp_display_lock(-1);
 
     if (!map_handle) {
         ESP_LOGE(TAG, "Map not initialized");
@@ -303,7 +286,7 @@ void map_display_set_tile_type(int tile_type, double lat, double lon)
         bsp_display_unlock();
         // Reload tiles for the new type
         map_display_load_location(lat, lon);
-        bsp_display_lock(0);
+        bsp_display_lock(-1);
     }
     bsp_display_unlock();
  }
@@ -317,7 +300,7 @@ void map_display_set_tile_type(int tile_type, double lat, double lon)
  */
 void map_display_set_zoom(int zoom, double lat, double lon)
 {
-    bsp_display_lock(0);
+    bsp_display_lock(-1);
     if (!map_handle) {
         ESP_LOGE(TAG, "Map not initialized");
         bsp_display_unlock();
@@ -371,13 +354,13 @@ void minusButtonCb(lv_event_t * e)
  */
 void map_display_add_marker(double lat, double lon)
 {
-    bsp_display_lock(0);
     if (!map_handle) {
         ESP_LOGE(TAG, "Map not initialized");
-        bsp_display_unlock();
         return;
     }
     
+    bsp_display_lock(-1);
+
     // update coordinates
     lv_obj_update_layout(lv_screen_active());
 
@@ -387,7 +370,7 @@ void map_display_add_marker(double lat, double lon)
         ESP_LOGW(TAG, "GPS position outside inner half of outer tiles, reloading map");
         // if not, load tiles for location
         map_display_load_location(lat, lon);
-        bsp_display_lock(0);
+        bsp_display_lock(-1);
     }
 
     // Convert GPS to tile coordinates
@@ -502,6 +485,8 @@ void map_display_add_marker(double lat, double lon)
  */
 void map_display_cleanup(void)
 {
+    bsp_display_lock(-1);
+
     if (tile_images) {
         free(tile_images);
         tile_images = NULL;
@@ -518,7 +503,9 @@ void map_display_cleanup(void)
     }
     
     grid_cols = grid_rows = tile_count = 0;
-    
+
+    bsp_display_unlock();
+
     ESP_LOGI(TAG, "Map display cleaned up");
 }
 

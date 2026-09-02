@@ -35,7 +35,7 @@ static const char * heading_to_cardinal(int32_t heading)
 
 static void set_heading_value(void * obj, int32_t v)
 {
-    bsp_display_lock(0);
+    bsp_display_lock(-1);
     LV_UNUSED(obj);
     lv_scale_set_rotation(scale, 270 - v);
     lv_label_set_text_fmt(label, "%d°\n%s", (int)v, heading_to_cardinal(v));
@@ -44,7 +44,7 @@ static void set_heading_value(void * obj, int32_t v)
 
 void lv_gnss_cockpit_set_current_values(int angle, int speed, int altitude, const char *latitudeDegMinSec, const char *latitudeDeg, const char *longitudeDegMinSec, const char *longitudeDeg, const char *date, const char *time, int nrOfSats)
 {
-    bsp_display_lock(0);
+    bsp_display_lock(-1);
     if (speed >= 2) {
         lv_scale_set_rotation(scale, 270 - angle);
         lv_label_set_text_fmt(label, "%d°\n%s", angle, heading_to_cardinal(angle));
@@ -63,7 +63,7 @@ void lv_gnss_cockpit_set_current_values(int angle, int speed, int altitude, cons
 
 static void draw_event_cb(lv_event_t * e)
 {
-    bsp_display_lock(0);
+    bsp_display_lock(-1);
     lv_draw_task_t * draw_task = lv_event_get_draw_task(e);
     lv_draw_dsc_base_t * base_dsc = (lv_draw_dsc_base_t *)lv_draw_task_get_draw_dsc(draw_task);
     lv_draw_label_dsc_t * label_draw_dsc = lv_draw_task_get_label_dsc(draw_task);
@@ -85,7 +85,8 @@ static void draw_event_cb(lv_event_t * e)
 
 void lv_gnss_cockpit_init(lv_obj_t *parent)
 {
-    bsp_display_lock(0);
+    bsp_display_lock(-1);
+
     // Compass
     scale = lv_scale_create(parent);
 
@@ -248,6 +249,7 @@ void lv_gnss_cockpit_init(lv_obj_t *parent)
     lv_obj_set_pos(anzahlSatelliten, 10, 193);
     lv_label_set_text(anzahlSatelliten, "");
     lv_obj_set_style_text_align(anzahlSatelliten, LV_TEXT_ALIGN_LEFT, 0);
+
     bsp_display_unlock();
 }
 

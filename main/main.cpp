@@ -488,7 +488,7 @@ extern "C" void app_main(void)
 
     bsp_display_start(); // Initialize display and LVGL
 
-    bsp_display_lock(0);
+    bsp_display_lock(-1);
 
     //********************
     // display the TabView
