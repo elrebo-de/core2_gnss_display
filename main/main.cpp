@@ -208,54 +208,59 @@ extern "C" void ppsSignalCb(void *arg, void *data)
             std::string date(seglist[9]);
             std::string variation(seglist[10].append(",").append(seglist[11]));
 
-            // print data
-            ESP_LOGD(tag.c_str(),
-                     "$GNRMC\n Time: %s,\n Validity: %s,\n Latitude: %s,\n Longitude: %s,\n SpeedOverGround(Knots): %s,\n TrueTrackAngle: %s,\n Date: %s,\n Variation: %s",
-                     time.c_str(),
-                     validity.c_str(),
-                     latitude.c_str(),
-                     longitude.c_str(),
-                     speedOverGroundKnots.c_str(),
-                     trueTrackAngle.c_str(),
-                     date.c_str(),
-                     variation.c_str());
-            // verwende latitude im label widget breite (latitude)
-            // format is: ddmm.ffffff,{N|S}
-            if(latitude.length() >= 13) {
-                latitudeDegMin = latitude.substr(0,2).append("°").append(latitude.substr(2,9)).append("'").append(latitude.substr(12,1));
-                float floatDeg = std::stof(latitude.substr(0,2)) + std::stof(latitude.substr(2,9)) / 60;
-                char deg[20];
-                sprintf(deg, "%011.8f", floatDeg);
-                if(0 == latitude.substr(12,1).compare("S")) strcpy(deg, std::string("-").append(deg).c_str());
-                latitudeDeg = std::string(deg);
-                float sec = std::stof(latitude.substr(4,7)) * 60;
-                char degMinSec[20];
-                sprintf(degMinSec, "%s°%s'%7.4f\"%s", latitude.substr(0,2).c_str(), latitude.substr(2,2).c_str(), sec, latitude.substr(12,1).c_str());
-                latitudeDegMinSec = std::string(degMinSec);
-                ESP_LOGD(tag.c_str(), "Deg: %s, Min: %s, Sec: %7.4f, LatitudeDegMinSec: %s, LatitudeDegMin: %s, LatitudeDeg: %s", latitude.substr(0,2).c_str(), latitude.substr(2,2).c_str(), sec, latitudeDegMinSec.c_str(), latitudeDegMin.c_str(), latitudeDeg.c_str());
+            if(validity == std::string("A")) {
+                // print data
+                ESP_LOGD(tag.c_str(),
+                         "$GNRMC\n Time: %s,\n Validity: %s,\n Latitude: %s,\n Longitude: %s,\n SpeedOverGround(Knots): %s,\n TrueTrackAngle: %s,\n Date: %s,\n Variation: %s",
+                         time.c_str(),
+                         validity.c_str(),
+                         latitude.c_str(),
+                         longitude.c_str(),
+                         speedOverGroundKnots.c_str(),
+                         trueTrackAngle.c_str(),
+                         date.c_str(),
+                         variation.c_str());
+                // verwende latitude im label widget breite (latitude)
+                // format is: ddmm.ffffff,{N|S}
+                if(latitude.length() >= 13) {
+                    latitudeDegMin = latitude.substr(0,2).append("°").append(latitude.substr(2,9)).append("'").append(latitude.substr(12,1));
+                    float floatDeg = std::stof(latitude.substr(0,2)) + std::stof(latitude.substr(2,9)) / 60;
+                    char deg[20];
+                    sprintf(deg, "%011.8f", floatDeg);
+                    if(0 == latitude.substr(12,1).compare("S")) strcpy(deg, std::string("-").append(deg).c_str());
+                    latitudeDeg = std::string(deg);
+                    float sec = std::stof(latitude.substr(4,7)) * 60;
+                    char degMinSec[20];
+                    sprintf(degMinSec, "%s°%s'%7.4f\"%s", latitude.substr(0,2).c_str(), latitude.substr(2,2).c_str(), sec, latitude.substr(12,1).c_str());
+                    latitudeDegMinSec = std::string(degMinSec);
+                    ESP_LOGD(tag.c_str(), "Deg: %s, Min: %s, Sec: %7.4f, LatitudeDegMinSec: %s, LatitudeDegMin: %s, LatitudeDeg: %s", latitude.substr(0,2).c_str(), latitude.substr(2,2).c_str(), sec, latitudeDegMinSec.c_str(), latitudeDegMin.c_str(), latitudeDeg.c_str());
+                }
+                // verwende longitude im label widget laenge (longitude)
+                // format is: dddmm.ffffff,{W|E}
+                if(longitude.length() >= 14) {
+                    longitudeDegMin = longitude.substr(0,3).append("°").append(longitude.substr(3,9)).append("'").append(longitude.substr(13,1));
+                    float floatDeg = std::stof(longitude.substr(0,3)) + std::stof(longitude.substr(3,9)) / 60;
+                    char deg[20];
+                    sprintf(deg, "%012.8f", floatDeg);
+                    if(0 == longitude.substr(13,1).compare("W")) strcpy(deg, std::string("-").append(deg).c_str());
+                    longitudeDeg = std::string(deg);
+                    float sec = std::stof(longitude.substr(5,7)) * 60;
+                    char degMinSec[20];
+                    sprintf(degMinSec,"%s°%s'%7.4f\"%s", longitude.substr(0,3).c_str(), longitude.substr(3,2).c_str(), sec, longitude.substr(13,1).c_str());
+                    longitudeDegMinSec = std::string(degMinSec);
+                    ESP_LOGD(tag.c_str(), "Deg: %s, Min: %s, Sec: %7.4f, LongitudeDegMinSec: %s, LongitudeDegMin: %s, LongitudeDeg: %s", longitude.substr(0,3).c_str(), longitude.substr(3,2).c_str(), sec, longitudeDegMinSec.c_str(), longitudeDegMin.c_str(), longitudeDeg.c_str());
+                }
+                // verwende time im label widget uhrzeit (time)
+                if(time.length() >= 6) {
+                    xtime = time.substr(0,2).append(":").append(time.substr(2,2)).append(":").append(time.substr(4,2));
+                }
+                // verwende date im label widget datum (date)
+                if(time.length() >= 6) {
+                    xdate = date.substr(0,2).append(".").append(date.substr(2,2)).append(".").append(date.substr(4,2));
+                }
             }
-            // verwende longitude im label widget laenge (longitude)
-            // format is: dddmm.ffffff,{W|E}
-            if(longitude.length() >= 14) {
-                longitudeDegMin = longitude.substr(0,3).append("°").append(longitude.substr(3,9)).append("'").append(longitude.substr(13,1));
-                float floatDeg = std::stof(longitude.substr(0,3)) + std::stof(longitude.substr(3,9)) / 60;
-                char deg[20];
-                sprintf(deg, "%012.8f", floatDeg);
-                if(0 == longitude.substr(13,1).compare("W")) strcpy(deg, std::string("-").append(deg).c_str());
-                longitudeDeg = std::string(deg);
-                float sec = std::stof(longitude.substr(5,7)) * 60;
-                char degMinSec[20];
-                sprintf(degMinSec,"%s°%s'%7.4f\"%s", longitude.substr(0,3).c_str(), longitude.substr(3,2).c_str(), sec, longitude.substr(13,1).c_str());
-                longitudeDegMinSec = std::string(degMinSec);
-                ESP_LOGD(tag.c_str(), "Deg: %s, Min: %s, Sec: %7.4f, LongitudeDegMinSec: %s, LongitudeDegMin: %s, LongitudeDeg: %s", longitude.substr(0,3).c_str(), longitude.substr(3,2).c_str(), sec, longitudeDegMinSec.c_str(), longitudeDegMin.c_str(), longitudeDeg.c_str());
-            }
-            // verwende time im label widget uhrzeit (time)
-            if(time.length() >= 6) {
-                xtime = time.substr(0,2).append(":").append(time.substr(2,2)).append(":").append(time.substr(4,2));
-            }
-            // verwende date im label widget datum (date)
-            if(time.length() >= 6) {
-                xdate = date.substr(0,2).append(".").append(date.substr(2,2)).append(".").append(date.substr(4,2));
+            else {
+                ESP_LOGD(tag.c_str(),"$GNRMC not valid!");
             }
         }
 
@@ -368,6 +373,10 @@ esp_vfs_fat_sdmmc_mount_config_t mount_config = {
 extern "C" void app_main(void)
 {
     vTaskDelay(500 / portTICK_PERIOD_MS); // delay 0.5 seconds
+
+    // set log level to DEBUG for selected TAGs
+    //esp_log_level_set("CORE2 GNSS Display", ESP_LOG_DEBUG);
+    //esp_log_level_set("basic_map_display", ESP_LOG_DEBUG);
 
     ESP_LOGI(tag.c_str(), "Configure local timezone");
     // set timezone für Germany (CET/CEST incl. rules for switching)

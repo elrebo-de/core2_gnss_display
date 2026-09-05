@@ -1,4 +1,3 @@
-#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "basic_map_display.h"
 
 #include "bsp/esp-bsp.h"
@@ -34,15 +33,23 @@ struct map_tiles_t {
 
 static map_tiles_handle_t map_handle = NULL;
 
+static double currentLatPosition = 0.;
+static double currentLonPosition = 0.;
+
 // LVGL objects for displaying tiles
 static lv_obj_t* map_container = NULL;
 static lv_obj_t** tile_images = NULL;  // Dynamic array for configurable grid
 static lv_obj_t** tile_borders = NULL;  // Dynamic array for configurable grid
 static int grid_cols = 0, grid_rows = 0, tile_count = 0;
+
+static lv_obj_t* marker = NULL;
+
 static lv_obj_t * copyright = NULL;
 static lv_obj_t * plusButton = NULL;
 static lv_obj_t * minusButton = NULL;
-static lv_style_t style_active;
+
+static lv_style_t style_plusActive;
+static lv_style_t style_minusActive;
 
 // additional function for map_tiles
 bool map_tiles_is_gps_within_inner_half_of_outer_tiles(map_tiles_handle_t handle, double lat, double lon)
@@ -78,6 +85,47 @@ bool map_tiles_is_gps_within_inner_half_of_outer_tiles(map_tiles_handle_t handle
     }
 
     return within_x && within_y;
+}
+
+// Callback-Funktion für den PowerOff Button click
+void plusButtonCb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if(code == LV_EVENT_CLICKED) {
+        ESP_LOGI(TAG, "PlusButton clicked!");
+
+        // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
+        lv_display_t *disp = lv_display_get_default();
+        lv_display_enable_invalidation(disp, false);
+
+        ESP_LOGI(TAG, "Zoom in!");
+        map_display_set_zoom(map_tiles_get_zoom(map_handle) + 1, currentLatPosition, currentLonPosition);
+
+        // 3. Invalidation wieder erlauben
+        lv_display_enable_invalidation(disp, true);
+        // 4. Einmalig manuell das Neuzeichnen aller geänderten Bereiche erzwingen
+        lv_refr_now(disp);
+    }
+}
+
+void minusButtonCb(lv_event_t * e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if(code == LV_EVENT_CLICKED) {
+        ESP_LOGI(TAG, "MinusButton clicked!");
+
+        // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
+        lv_display_t *disp = lv_display_get_default();
+        lv_display_enable_invalidation(disp, false);
+
+        ESP_LOGI(TAG, "Zoom out!");
+        map_display_set_zoom(map_tiles_get_zoom(map_handle) - 1, currentLatPosition, currentLonPosition);
+
+        // 3. Invalidation wieder erlauben
+        lv_display_enable_invalidation(disp, true);
+        // 4. Einmalig manuell das Neuzeichnen aller geänderten Bereiche erzwingen
+        lv_refr_now(disp);
+    }
 }
 
 /**
@@ -183,6 +231,78 @@ void map_display_init(lv_obj_t * parent)
     lv_obj_set_style_border_color(tile_borders[tile_count], lv_palette_main(LV_PALETTE_GREEN), 0);
     lv_obj_set_style_pad_all(tile_borders[tile_count], 0, 0);
 
+    // + button
+    if(plusButton == NULL) {
+        plusButton = lv_btn_create(parent);
+        lv_obj_set_pos(plusButton, 270, 10);
+        lv_obj_set_size(plusButton, 40, 40);
+
+        // Event-Callback an den Button hängen
+        lv_obj_add_event_cb(plusButton, plusButtonCb, LV_EVENT_ALL, NULL);
+
+        // Text auf dem Button platzieren
+        lv_obj_t * label = lv_label_create(plusButton);
+        lv_label_set_text(label, "+");
+        lv_obj_center(label);
+
+        lv_style_init(&style_plusActive);
+        // Grüne Hintergrundfarbe, wenn der Schalter "EIN" ist
+        lv_style_set_bg_color(&style_plusActive, lv_palette_main(LV_PALETTE_GREEN));
+        // Style explizit für den PRESSED-Zustand zuweisen
+        lv_obj_add_style(plusButton, &style_plusActive, LV_STATE_PRESSED);
+
+    }
+
+    // - button
+    if(minusButton == NULL) {
+        minusButton = lv_btn_create(parent);
+        lv_obj_set_pos(minusButton, 270, 150);
+        lv_obj_set_size(minusButton, 40, 40);
+
+        // Event-Callback an den Button hängen
+        lv_obj_add_event_cb(minusButton, minusButtonCb, LV_EVENT_ALL, NULL);
+
+        // Text auf dem Button platzieren
+        lv_obj_t * label = lv_label_create(minusButton);
+        lv_label_set_text(label, "-");
+        lv_obj_center(label);
+
+        lv_style_init(&style_minusActive);
+        // Grüne Hintergrundfarbe, wenn der Schalter "EIN" ist
+        lv_style_set_bg_color(&style_minusActive, lv_palette_main(LV_PALETTE_GREEN));
+        // Style explizit für den PRESSED-Zustand zuweisen
+        lv_obj_add_style(minusButton, &style_minusActive, LV_STATE_PRESSED);
+    }
+
+    // update coordinates
+    lv_obj_update_layout(lv_screen_active());
+
+    LV_FONT_DECLARE(my_montserrat_14);
+    // Copyright notice
+    uint32_t width = lv_obj_get_width(map_container);
+    uint32_t height = lv_obj_get_height(map_container);
+    if(copyright == NULL) {
+        copyright = lv_label_create(parent);
+        lv_obj_set_width(copyright, width);
+        lv_obj_set_height(copyright, 15);
+        lv_obj_set_style_text_font(copyright, &my_montserrat_14, 0);
+        lv_label_set_text(copyright, "© OpenStreetMap Contributors ");
+        lv_obj_set_style_text_align(copyright, LV_TEXT_ALIGN_RIGHT, 0);
+    }
+    lv_obj_set_pos(copyright, 0, height - 15);
+
+    if (!marker) {
+        marker = lv_obj_create(map_container);
+        lv_obj_set_size(marker, 10, 10);
+        lv_obj_set_style_bg_color(marker, lv_color_hex(0xFF0000), 0);
+        lv_obj_set_style_radius(marker, 5, 0);
+        lv_obj_set_style_border_width(marker, 1, 0);
+        lv_obj_set_style_border_color(marker, lv_color_hex(0xFFFFFF), 0);
+    }
+
+    // set marker object to center
+    lv_obj_set_pos(marker, grid_rows * MAP_TILES_TILE_SIZE / 2, grid_cols * MAP_TILES_TILE_SIZE / 2);
+
     bsp_display_unlock();
 
     ESP_LOGI(TAG, "Map display initialized");
@@ -201,8 +321,6 @@ void map_display_load_location(double lat, double lon)
         return;
     }
     
-    bsp_display_lock(-1);
-
     ESP_LOGI(TAG, "Loading map for GPS: %.6f, %.6f", lat, lon);
     
     // Set center from GPS coordinates
@@ -211,10 +329,6 @@ void map_display_load_location(double lat, double lon)
     // Get current tile position
     int base_tile_x, base_tile_y;
     map_tiles_get_position(map_handle, &base_tile_x, &base_tile_y);
-
-    // pause all LVGL timers globally
-    lv_timer_enable(false);
-    bsp_display_unlock();
 
     // Load tiles in a configurable grid
     for (int row = 0; row < grid_rows; row++) {
@@ -244,12 +358,10 @@ void map_display_load_location(double lat, double lon)
             bsp_display_unlock();
         }
     }
-    map_display_add_marker(lat, lon);
+    // update coordinates
+    lv_obj_update_layout(lv_screen_active());
 
-    // resume all LVGL timers globally
-    bsp_display_lock(-1);
-    lv_timer_enable(true);
-    bsp_display_unlock();
+    //map_display_add_marker(lat, lon);
 
     ESP_LOGI(TAG, "Map tiles loaded for location");
 }
@@ -309,49 +421,15 @@ void map_display_set_zoom(int zoom, double lat, double lon)
     }
     
     ESP_LOGI(TAG, "Setting zoom to %d", zoom);
-    
+
     // Update zoom level
     map_tiles_set_zoom(map_handle, zoom);
     
     bsp_display_unlock();
      // Reload tiles for the new zoom level
     map_display_load_location(lat, lon);
-}
 
-// Callback-Funktion für den PowerOff Button click
-void plusButtonCb(lv_event_t * e)
-{
-    lv_event_code_t code = lv_event_get_code(e);
-    if(code == LV_EVENT_CLICKED) {
-        ESP_LOGI(TAG, "PlusButton clicked!");
-
-        ESP_LOGI(TAG, "Zoom in!");
-        double lat;
-        double lon;
-        map_tiles_get_center_gps(map_handle, &lat, &lon);
-        map_display_set_zoom(map_tiles_get_zoom(map_handle) + 1, lat, lon);
-
-//        static lv_style_t style_inactive;
-//        lv_style_init(&style_inactive);
-//        // Grüne Hintergrundfarbe, wenn der Schalter "EIN" ist
-//        lv_style_set_bg_color(&style_inactive, lv_palette_main(LV_PALETTE_BLUE));
-//        // Style explizit für den DEFAULT-Zustand zuweisen
-//        lv_obj_add_style(button, &style_inactive, LV_STATE_DEFAULT);
-    }
-}
-
-void minusButtonCb(lv_event_t * e)
-{
-    lv_event_code_t code = lv_event_get_code(e);
-    if(code == LV_EVENT_CLICKED) {
-        ESP_LOGI(TAG, "MinusButton clicked!");
-
-        ESP_LOGI(TAG, "Zoom out!");
-        double lat;
-        double lon;
-        map_tiles_get_center_gps(map_handle, &lat, &lon);
-        map_display_set_zoom(map_tiles_get_zoom(map_handle) - 1, lat, lon);
-    }
+    map_display_add_marker(lat, lon);
 }
 
 /**
@@ -366,7 +444,10 @@ void map_display_add_marker(double lat, double lon)
         ESP_LOGE(TAG, "Map not initialized");
         return;
     }
-    
+
+    currentLatPosition = lat;
+    currentLonPosition = lon;
+
     bsp_display_lock(-1);
 
     // update coordinates
@@ -419,24 +500,15 @@ void map_display_add_marker(double lat, double lon)
                  marker_x, marker_y, container_width, container_height);
     }
     
-    // Create or update marker object
-    static lv_obj_t* marker = NULL;
-    if (!marker) {
-        marker = lv_obj_create(map_container);
-        lv_obj_set_size(marker, 10, 10);
-        lv_obj_set_style_bg_color(marker, lv_color_hex(0xFF0000), 0);
-        lv_obj_set_style_radius(marker, 5, 0);
-        lv_obj_set_style_border_width(marker, 1, 0);
-        lv_obj_set_style_border_color(marker, lv_color_hex(0xFFFFFF), 0);
-    }
-    
+    // update marker object
     lv_obj_set_pos(marker, marker_x, marker_y);
 
     ESP_LOGD(TAG, "GPS marker at (%.6f, %.6f) positioned at pixel (%d, %d)",
              lat, lon, marker_x, marker_y);
 
     // update coordinates
-    //lv_obj_update_layout(lv_screen_active());
+    lv_obj_update_layout(lv_screen_active());
+
     uint32_t width = lv_obj_get_width(map_container);
     uint32_t height = lv_obj_get_height(map_container);
 
@@ -444,60 +516,9 @@ void map_display_add_marker(double lat, double lon)
     // Use LV_ANIM_ON if you want a smooth sliding transition on load
     lv_obj_scroll_to(map_container, marker_x - width/2, marker_y - height/2, LV_ANIM_ON);
 
-    LV_FONT_DECLARE(my_montserrat_14);
-    // Copyright notice
-    if(copyright == NULL) {
-        copyright = lv_label_create(lv_obj_get_parent(map_container));
-        lv_obj_set_width(copyright, width);
-        lv_obj_set_height(copyright, 15);
-        lv_obj_set_style_text_font(copyright, &my_montserrat_14, 0);
-        lv_label_set_text(copyright, "© OpenStreetMap Contributors ");
-        lv_obj_set_style_text_align(copyright, LV_TEXT_ALIGN_RIGHT, 0);
-    }
-    lv_obj_set_pos(copyright, 0, height - 15);
+    // update coordinates
+    lv_obj_update_layout(lv_screen_active());
 
-    // + button
-    if(plusButton == NULL) {
-        plusButton = lv_btn_create(lv_obj_get_parent(map_container));
-        lv_obj_set_pos(plusButton, 270, 10);
-        lv_obj_set_size(plusButton, 40, 40);
-
-        // Event-Callback an den Button hängen
-        lv_obj_add_event_cb(plusButton, plusButtonCb, LV_EVENT_ALL, NULL);
-
-        // Text auf dem Button platzieren
-        lv_obj_t * label = lv_label_create(plusButton);
-        lv_label_set_text(label, "+");
-        lv_obj_center(label);
-
-        lv_style_init(&style_active);
-        // Grüne Hintergrundfarbe, wenn der Schalter "EIN" ist
-        lv_style_set_bg_color(&style_active, lv_palette_main(LV_PALETTE_GREEN));
-        // Style explizit für den PRESSED-Zustand zuweisen
-        lv_obj_add_style(plusButton, &style_active, LV_STATE_PRESSED);
-
-    }
-
-    // - button
-    if(minusButton == NULL) {
-        minusButton = lv_btn_create(lv_obj_get_parent(map_container));
-        lv_obj_set_pos(minusButton, 270, 150);
-        lv_obj_set_size(minusButton, 40, 40);
-
-        // Event-Callback an den Button hängen
-        lv_obj_add_event_cb(minusButton, minusButtonCb, LV_EVENT_ALL, NULL);
-
-        // Text auf dem Button platzieren
-        lv_obj_t * label = lv_label_create(minusButton);
-        lv_label_set_text(label, "-");
-        lv_obj_center(label);
-
-        lv_style_init(&style_active);
-        // Grüne Hintergrundfarbe, wenn der Schalter "EIN" ist
-        lv_style_set_bg_color(&style_active, lv_palette_main(LV_PALETTE_GREEN));
-        // Style explizit für den PRESSED-Zustand zuweisen
-        lv_obj_add_style(minusButton, &style_active, LV_STATE_PRESSED);
-    }
     bsp_display_unlock();
  }
 
