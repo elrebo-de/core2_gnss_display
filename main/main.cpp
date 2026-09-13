@@ -324,14 +324,19 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 xtime = localTimestamp.substr(11);
             }
         }
+
         // set current cockpit values
         lv_gnss_cockpit_set_current_values(angle, speed, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
 
-        // set marker position in map
+        // set marker position and speed in map
         if(sd_card) {
+            double lat = 0.0;
+            double lon = 0.0;
             if(latitudeDeg.length() > 7 && longitudeDeg.length() > 7) {
-                map_display_add_marker(std::stof(latitudeDeg), std::stof(longitudeDeg));
+                lat = std::stof(latitudeDeg);
+                lon = std::stof(longitudeDeg);
             }
+            map_display_set_current_values(angle, speed, altitude, lat, lon);
         }
     }
 }

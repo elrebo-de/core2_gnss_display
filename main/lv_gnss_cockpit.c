@@ -45,7 +45,7 @@ static void set_heading_value(void * obj, int32_t v)
 void lv_gnss_cockpit_set_current_values(int angle, int speed, int altitude, const char *latitudeDegMinSec, const char *latitudeDeg, const char *longitudeDegMinSec, const char *longitudeDeg, const char *date, const char *time, int nrOfSats)
 {
     bsp_display_lock(-1);
-    if (speed >= 2) {
+    if (speed > 2) {
         lv_scale_set_rotation(scale, 270 - angle);
         lv_label_set_text_fmt(label, "%d°\n%s", angle, heading_to_cardinal(angle));
     }

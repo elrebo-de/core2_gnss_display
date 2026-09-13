@@ -4,6 +4,9 @@
 
 static char *TAG = "basic_map_display";
 
+LV_IMAGE_DECLARE(arrow_up_11_20_a);
+LV_FONT_DECLARE(my_montserrat_14);
+
 // Map tiles handle
 // Internal structure for map tiles instance
 struct map_tiles_t {
@@ -48,8 +51,16 @@ static lv_obj_t * copyright = NULL;
 static lv_obj_t * plusButton = NULL;
 static lv_obj_t * minusButton = NULL;
 
+static lv_obj_t * tacho = NULL;
+static lv_obj_t * hoehe = NULL;
+static lv_obj_t * arrow = NULL;
+
 static lv_style_t style_plusActive;
 static lv_style_t style_minusActive;
+// Style für ganz große Schrift erstellen
+static lv_style_t style_very_large;
+// Style für große Schrift erstellen
+static lv_style_t style_large;
 
 // additional function for map_tiles
 bool map_tiles_is_gps_within_inner_half_of_outer_tiles(map_tiles_handle_t handle, double lat, double lon)
@@ -277,7 +288,6 @@ void map_display_init(lv_obj_t * parent)
     // update coordinates
     lv_obj_update_layout(lv_screen_active());
 
-    LV_FONT_DECLARE(my_montserrat_14);
     // Copyright notice
     uint32_t width = lv_obj_get_width(map_container);
     uint32_t height = lv_obj_get_height(map_container);
@@ -288,24 +298,101 @@ void map_display_init(lv_obj_t * parent)
         lv_obj_set_style_text_font(copyright, &my_montserrat_14, 0);
         lv_label_set_text(copyright, "© OpenStreetMap Contributors ");
         lv_obj_set_style_text_align(copyright, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_pos(copyright, 0, height - 15);
     }
-    lv_obj_set_pos(copyright, 0, height - 15);
 
     if (!marker) {
         marker = lv_obj_create(map_container);
-        lv_obj_set_size(marker, 10, 10);
+        lv_obj_set_size(marker, 11, 11);
         lv_obj_set_style_bg_color(marker, lv_color_hex(0xFF0000), 0);
         lv_obj_set_style_radius(marker, 5, 0);
         lv_obj_set_style_border_width(marker, 1, 0);
         lv_obj_set_style_border_color(marker, lv_color_hex(0xFFFFFF), 0);
+
+        // set marker object to center
+        lv_obj_set_pos(marker, grid_cols * MAP_TILES_TILE_SIZE / 2 - 5, grid_rows * MAP_TILES_TILE_SIZE / 2 - 5);
     }
 
-    // set marker object to center
-    lv_obj_set_pos(marker, grid_rows * MAP_TILES_TILE_SIZE / 2, grid_cols * MAP_TILES_TILE_SIZE / 2);
+    if(!arrow) {
+        arrow = lv_image_create(map_container);
+        lv_image_set_src(arrow, &arrow_up_11_20_a);
+
+        // 3. Define the widget dimension constraints explicitly
+        lv_obj_set_size(arrow, 11, 20);
+
+        // 5. Establish the center pivot point for rotation
+        // For a 11x20 icon, the exact center point is (5, 19)
+        lv_image_set_pivot(arrow, 5, 19);
+
+        // 4. Set the exact coordinates
+        // set marker object to center  minus (11/2, 20)
+        lv_obj_set_pos(arrow, grid_cols * MAP_TILES_TILE_SIZE / 2 - 5, grid_rows * MAP_TILES_TILE_SIZE / 2 - 19);
+
+        // 6. Set the angle (LVGL v9 uses 0.1-degree precision units)
+        // Formula: angle_value = degrees * 10
+        // Example: For 45°, pass 450. For 120.5°, pass 1205.
+        lv_image_set_rotation(arrow, 0 * 10);
+    }
+
+    if(!tacho) {
+        // Tacho mit Geschwindigkeit
+        // Style für ganz große Schrift erstellen
+        lv_style_init(&style_very_large);
+
+        // Eingebaute 48px-Schriftart zuweisen (Standard ist meist 14px)
+        lv_style_set_text_font(&style_very_large, &lv_font_montserrat_48);
+
+        tacho = lv_label_create(parent);
+        lv_obj_add_style(tacho, &style_very_large, LV_PART_MAIN);
+        lv_obj_set_width(tacho, 250);
+        lv_obj_set_height(tacho, 50);
+        // x: 0 + Rand
+        // y: Bildschirmhöhe - Schrifthöhe - Rand
+        //lv_obj_set_pos(tacho, 10, 240-48-10); // V1.0.0
+        lv_obj_set_pos(tacho, 10, 5); // V1.0.1
+        lv_label_set_text_fmt(tacho, "%3d km/h", 0);
+        lv_obj_set_style_text_align(tacho, LV_TEXT_ALIGN_RIGHT, 0);
+    }
+
+    if(!hoehe) {
+        // Meereshöhe
+        // Style für große Schrift erstellen
+        lv_style_init(&style_large);
+
+        // Eingebaute 24px-Schriftart zuweisen (Standard ist meist 14px)
+        lv_style_set_text_font(&style_large, &lv_font_montserrat_24);
+
+        hoehe = lv_label_create(parent);
+        lv_obj_add_style(hoehe, &style_large, LV_PART_MAIN);
+        lv_obj_set_width(hoehe, 250);
+        lv_obj_set_height(hoehe, 30);
+        // x: 0 + Rand
+        // y: 0 + Rand
+        lv_obj_set_pos(hoehe, 10, 165);
+        lv_label_set_text_fmt(hoehe, "%3d m asl", 0);
+        lv_obj_set_style_text_align(hoehe, LV_TEXT_ALIGN_RIGHT, 0);
+    }
 
     bsp_display_unlock();
 
     ESP_LOGI(TAG, "Map display initialized");
+}
+
+void map_display_set_current_values(int angle, int speed, int altitude, double lat, double lon) {
+
+    bsp_display_lock(-1);
+
+    lv_label_set_text_fmt(tacho, "%3d km/h", speed);
+    lv_label_set_text_fmt(hoehe, "%3d m asl", altitude);
+    if (speed > 2) {
+        lv_image_set_rotation(arrow, angle * 10);
+    }
+
+    bsp_display_unlock();
+
+    if(lat != 0 && lon != 0) {
+        map_display_add_marker(lat, lon);
+    }
 }
 
 /**
@@ -486,9 +573,13 @@ void map_display_add_marker(double lat, double lon)
     lv_coord_t scroll_y = lv_obj_get_scroll_y(map_container);
     
     // Calculate marker position relative to current view
-    int marker_x = abs_px - top_left_px_x /*- scroll_x*/ - 5;  // -5 to center the 10px marker
+    int marker_x = abs_px - top_left_px_x /*- scroll_x*/ - 5;  // -5 to center the 11px marker
     int marker_y = abs_py - top_left_px_y /*- scroll_y*/ - 5;
-    
+
+    // Calculate arrow position relative to current view
+    int arrow_x = abs_px - top_left_px_x /*- scroll_x*/ - 5;
+    int arrow_y = abs_py - top_left_px_y /*- scroll_y*/ - 19;
+
     ESP_LOGD(TAG, "Marker calculation: tile_xy=(%.3f,%.3f) base=(%d,%d) abs_px=(%d,%d) scroll=(%d,%d) pixel=(%d,%d)",
              tile_x, tile_y, base_tile_x, base_tile_y, abs_px, abs_py, scroll_x, scroll_y, marker_x, marker_y);
     
@@ -502,6 +593,9 @@ void map_display_add_marker(double lat, double lon)
     
     // update marker object
     lv_obj_set_pos(marker, marker_x, marker_y);
+
+    // update arrow object
+    lv_obj_set_pos(arrow, arrow_x, arrow_y);
 
     ESP_LOGD(TAG, "GPS marker at (%.6f, %.6f) positioned at pixel (%d, %d)",
              lat, lon, marker_x, marker_y);
