@@ -591,12 +591,6 @@ void map_display_add_marker(double lat, double lon)
                  marker_x, marker_y, container_width, container_height);
     }
     
-    // update marker object
-    lv_obj_set_pos(marker, marker_x, marker_y);
-
-    // update arrow object
-    lv_obj_set_pos(arrow, arrow_x, arrow_y);
-
     ESP_LOGD(TAG, "GPS marker at (%.6f, %.6f) positioned at pixel (%d, %d)",
              lat, lon, marker_x, marker_y);
 
@@ -606,9 +600,18 @@ void map_display_add_marker(double lat, double lon)
     uint32_t width = lv_obj_get_width(map_container);
     uint32_t height = lv_obj_get_height(map_container);
 
+    // first the window is scrolled to the new position, then the marker and arrow positions are updated
+    // go get a smooth movement impression
+
     // Scroll the window panel itself to the center the marker position
     // Use LV_ANIM_ON if you want a smooth sliding transition on load
     lv_obj_scroll_to(map_container, marker_x - width/2, marker_y - height/2, LV_ANIM_ON);
+
+    // update marker object
+    lv_obj_set_pos(marker, marker_x, marker_y);
+
+    // update arrow object
+    lv_obj_set_pos(arrow, arrow_x, arrow_y);
 
     // update coordinates
     lv_obj_update_layout(lv_screen_active());
