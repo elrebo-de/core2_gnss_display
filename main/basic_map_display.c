@@ -391,7 +391,7 @@ void map_display_set_current_values(int angle, int speed, int altitude, double l
     bsp_display_unlock();
 
     if(lat != 0 && lon != 0) {
-        map_display_add_marker(lat, lon);
+        map_display_set_center_from_gps(lat, lon);
     }
 }
 
@@ -448,8 +448,6 @@ void map_display_load_location(double lat, double lon)
     // update coordinates
     lv_obj_update_layout(lv_screen_active());
 
-    //map_display_add_marker(lat, lon);
-
     ESP_LOGI(TAG, "Map tiles loaded for location");
 }
 
@@ -500,23 +498,19 @@ void map_display_set_tile_type(int tile_type, double lat, double lon)
  */
 void map_display_set_zoom(int zoom, double lat, double lon)
 {
-    bsp_display_lock(-1);
     if (!map_handle) {
         ESP_LOGE(TAG, "Map not initialized");
-        bsp_display_unlock();
         return;
     }
     
     ESP_LOGI(TAG, "Setting zoom to %d", zoom);
-
     // Update zoom level
+    bsp_display_lock(-1);
     map_tiles_set_zoom(map_handle, zoom);
-    
     bsp_display_unlock();
-     // Reload tiles for the new zoom level
-    map_display_load_location(lat, lon);
 
-    map_display_add_marker(lat, lon);
+    // Show tiles for the new zoom level and position
+    map_display_set_center_from_gps(lat, lon);
 }
 
 /**
@@ -525,7 +519,7 @@ void map_display_set_zoom(int zoom, double lat, double lon)
  * @param lat Latitude in degrees
  * @param lon Longitude in degrees
  */
-void map_display_add_marker(double lat, double lon)
+void map_display_set_center_from_gps(double lat, double lon)
 {
     if (!map_handle) {
         ESP_LOGE(TAG, "Map not initialized");

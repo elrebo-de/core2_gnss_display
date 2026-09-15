@@ -550,30 +550,23 @@ extern "C" void app_main(void)
     // display cockpit and/or map
     //***************************
 
-    /*cockpit*/  lv_gnss_cockpit_init(t1);
+    // Initialize cockpit display
+    lv_gnss_cockpit_init(t1);
 
     if(sd_card) {
-        /*map*/      // Initialize map display
-        /*map*/      map_display_init(t2);
-        /*map*/
-        /*map*/      // Load map for Wilhelmsfeld
-        /*map*/      //double lat = 49.47023;
-        /*map*/      //double lon = 8.75627;
-                     // Load map for position without map tiles for testing
-        /*map*/      double lat = 52.47023;
-        /*map*/      double lon = 9.75627;
-        /*map*/      map_display_load_location(lat, lon);
-        /*map*/
-        /*map*/      // Add GPS marker
-        /*map*/      map_display_add_marker(lat, lon);
+        // Initialize map display
+        map_display_init(t2);
+        // set center to Lat=0,0, Lon=0.0 and position marker and arrow
+        map_display_set_center_from_gps(0, 0);
     }
 
-    /*settings*/  lv_gnss_settings_init(t3, powerOffCb);
+    // Initialize settings display
+    lv_gnss_settings_init(t3, powerOffCb);
 
-    /*cockpit*/  ppsSignal.RegisterCallbackForEvent(BUTTON_SINGLE_CLICK, ppsSignalCb);
+    // register callback for GNSS receiver pulse
+    ppsSignal.RegisterCallbackForEvent(BUTTON_SINGLE_CLICK, ppsSignalCb);
 
-/*****/
-    // do nothing
+    // log charging state every 30 seconds
     while(1) {
         I2cDevice *device = i2c->GetDevice("AXP2101");
 
@@ -596,5 +589,4 @@ extern "C" void app_main(void)
 
         vTaskDelay(30000 / portTICK_PERIOD_MS); // delay 30 seconds
     }
-/*****/
 }

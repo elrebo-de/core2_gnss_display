@@ -18,7 +18,7 @@ void map_display_set_current_values(int angle, int speed, int altitude, double l
 void map_display_load_location(double lat, double lon);
 void map_display_set_tile_type(int tile_type, double lat, double lon);
 void map_display_set_zoom(int zoom, double lat, double lon);
-void map_display_add_marker(double lat, double lon);
+void map_display_set_center_from_gps(double lat, double lon);
 void map_display_cleanup(void);
 
 #ifdef __cplusplus
