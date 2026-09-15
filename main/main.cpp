@@ -325,6 +325,12 @@ extern "C" void ppsSignalCb(void *arg, void *data)
             }
         }
 
+        // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
+        bsp_display_lock(-1);
+        lv_display_t *disp = lv_display_get_default();
+        lv_display_enable_invalidation(disp, false);
+        bsp_display_unlock();
+
         // set current cockpit values
         lv_gnss_cockpit_set_current_values(angle, speed, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
 
@@ -338,6 +344,14 @@ extern "C" void ppsSignalCb(void *arg, void *data)
             }
             map_display_set_current_values(angle, speed, altitude, lat, lon);
         }
+
+        // 3. Invalidation wieder erlauben
+        bsp_display_lock(-1);
+        lv_display_enable_invalidation(disp, true);
+        // 4. Einmalig manuell das Neuzeichnen aller geänderten Bereiche erzwingen
+        lv_refr_now(disp);
+        bsp_display_unlock();
+
     }
 }
 
