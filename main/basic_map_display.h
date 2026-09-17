@@ -14,7 +14,7 @@ extern "C" {
 #include "esp_log.h"
 
 void map_display_init(lv_obj_t * parent);
-void map_display_set_current_values(int angle, int speed, int altitude, double lat, double lon);
+void map_display_set_current_values(int angle, int speed, int altitude, double lat, double lon, const char * xtime);
 void map_display_load_location(double lat, double lon);
 void map_display_set_tile_type(int tile_type, double lat, double lon);
 void map_display_set_zoom(int zoom, double lat, double lon);

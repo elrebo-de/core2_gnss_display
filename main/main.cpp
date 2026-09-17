@@ -323,6 +323,7 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 xdate = localTimestamp.substr(0,6).append(localTimestamp.substr(8,2));
                 xtime = localTimestamp.substr(11);
             }
+            else xtime = "";
         }
 
         // set current cockpit values
@@ -334,7 +335,7 @@ extern "C" void ppsSignalCb(void *arg, void *data)
         lv_display_enable_invalidation(disp, false);
         bsp_display_unlock();
 
-        // set marker position and speed in map
+        // set marker position, angle and speed and altitude in map
         if(sd_card) {
             double lat = 0.0;
             double lon = 0.0;
@@ -342,7 +343,7 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 lat = std::stof(latitudeDeg);
                 lon = std::stof(longitudeDeg);
             }
-            map_display_set_current_values(angle, speed, altitude, lat, lon);
+            map_display_set_current_values(angle, speed, altitude, lat, lon, xtime.substr(0,5).c_str());
         }
 
         // 3. Invalidation wieder erlauben

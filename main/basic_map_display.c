@@ -55,6 +55,8 @@ static lv_obj_t * tacho = NULL;
 static lv_obj_t * hoehe = NULL;
 static lv_obj_t * arrow = NULL;
 
+static lv_obj_t * time = NULL;
+
 static lv_style_t style_plusActive;
 static lv_style_t style_minusActive;
 // Style für ganz große Schrift erstellen
@@ -373,13 +375,31 @@ void map_display_init(lv_obj_t * parent)
         lv_obj_set_style_text_align(hoehe, LV_TEXT_ALIGN_RIGHT, 0);
     }
 
+    if(!time) {
+        // Uhrzeit
+        // Style für große Schrift erstellen
+        //lv_style_init(&style_large);
+
+        // Eingebaute 24px-Schriftart zuweisen (Standard ist meist 14px)
+        //lv_style_set_text_font(&style_large, &lv_font_montserrat_24);
+
+        time = lv_label_create(parent);
+        lv_obj_add_style(time, &style_large, LV_PART_MAIN);
+        lv_obj_set_width(time, 300);
+        lv_obj_set_height(time, 30);
+        // x: 0 + Rand
+        // y: 0 + Rand
+        lv_obj_set_pos(time, 10, 65);
+        lv_label_set_text_fmt(time, "%s", "11:55:00");
+        lv_obj_set_style_text_align(time, LV_TEXT_ALIGN_RIGHT, 0);
+    }
+
     bsp_display_unlock();
 
     ESP_LOGI(TAG, "Map display initialized");
 }
 
-void map_display_set_current_values(int angle, int speed, int altitude, double lat, double lon) {
-
+void map_display_set_current_values(int angle, int speed, int altitude, double lat, double lon, const char* xtime) {
     bsp_display_lock(-1);
 
     lv_label_set_text_fmt(tacho, "%3d km/h", speed);
@@ -387,6 +407,8 @@ void map_display_set_current_values(int angle, int speed, int altitude, double l
     if (speed > 2) {
         lv_image_set_rotation(arrow, angle * 10);
     }
+
+    lv_label_set_text_fmt(time, "%s", xtime);
 
     bsp_display_unlock();
 
