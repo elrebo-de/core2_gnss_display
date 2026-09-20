@@ -16,7 +16,7 @@
 
 #include "lv_gnss_cockpit.h" // cockpit components
 #include "lv_gnss_settings.h" // settings components
-#include "basic_map_display.h" // map components
+#include "basic_map_display.hpp" // map components
 
 // Global Mutex for Timezone switch
 static SemaphoreHandle_t tz_mutex = NULL;
@@ -27,6 +27,12 @@ GenericUart *gnssUart; // pointer to GenericUart class
 
 #include "i2c_master.hpp"
 I2cMaster* i2c = NULL;
+
+#include "generic_nvsflash.hpp"
+uint32_t active_tab;
+uint8_t zoomlevel;
+std::string latitude;
+std::string longitude;
 
 #define LOG_MEM_INFO (0)
 
@@ -340,6 +346,13 @@ extern "C" void ppsSignalCb(void *arg, void *data)
             double lat = 0.0;
             double lon = 0.0;
             if(latitudeDeg.length() > 7 && longitudeDeg.length() > 7) {
+                {
+                    // set current values of lat, lon in nvsFlash
+                    GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
+                    esp_err_t ret;
+                    ret = nvsGnss.SetStr("latitude", latitudeDeg);
+                    ret = nvsGnss.SetStr("longitude", longitudeDeg);
+                }
                 lat = std::stof(latitudeDeg);
                 lon = std::stof(longitudeDeg);
             }
@@ -390,9 +403,52 @@ esp_vfs_fat_sdmmc_mount_config_t mount_config = {
     .allocation_unit_size = 16 * 1024     // Large allocation units optimize binary streaming
 };
 
+extern "C" void tabview_event_cb(lv_event_t * e)
+{
+    lv_obj_t * tv = (lv_obj_t*) lv_event_get_target(e);
+
+    // Den aktuell aktiven Tab-Index auslesen
+    uint32_t new_active_tab = lv_tabview_get_tab_act(tv); // Für LVGL v9+
+
+    ESP_LOGI("tabview_event_cb", "active_tab: %ld, new_active_tab: %ld", active_tab, new_active_tab);
+
+    if(active_tab != new_active_tab) {
+        GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
+        esp_err_t ret;
+        ret = nvsGnss.SetU32("active_tab", new_active_tab);
+    }
+}
+
 extern "C" void app_main(void)
 {
     vTaskDelay(500 / portTICK_PERIOD_MS); // delay 0.5 seconds
+
+    /* Open NVS flash Namespace "gnss" for read/write operations */
+    {
+        // read current values or initialize, if not already set
+        GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
+        esp_err_t ret;
+        active_tab = nvsGnss.GetU32("active_tab", &ret);
+        if(ret != ESP_OK) {
+            active_tab = 0;
+            ret = nvsGnss.SetU32("active_tab", active_tab);
+        }
+        zoomlevel = nvsGnss.GetU8("zoomlevel", &ret);
+        if(ret != ESP_OK) {
+            zoomlevel = 13;
+            ret = nvsGnss.SetU8("zoomlevel", zoomlevel);
+        }
+        latitude = nvsGnss.GetStr("latitude", &ret);
+        if(ret != ESP_OK) {
+            latitude = "0.0";
+            ret = nvsGnss.SetStr("latitude", latitude);
+        }
+        longitude = nvsGnss.GetStr("longitude", &ret);
+        if(ret != ESP_OK) {
+            longitude = "0.0";
+            ret = nvsGnss.SetStr("longitude", longitude);
+        }
+    }
 
     // set log level to DEBUG for selected TAGs
     //esp_log_level_set("CORE2 GNSS Display", ESP_LOG_DEBUG);
@@ -559,6 +615,9 @@ extern "C" void app_main(void)
     lv_obj_set_style_pad_left(t3, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_right(t3, 0, LV_PART_MAIN);
 
+    lv_tabview_set_act(tv, active_tab, LV_ANIM_OFF);
+    lv_obj_add_event_cb(tv, tabview_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
     bsp_display_unlock();
 
     //***************************
@@ -570,9 +629,11 @@ extern "C" void app_main(void)
 
     if(sd_card) {
         // Initialize map display
-        map_display_init(t2);
+        map_display_init(t2, zoomlevel);
         // set center to Lat=0,0, Lon=0.0 and position marker and arrow
-        map_display_set_center_from_gps(0, 0);
+        double lat = std::stof(latitude);
+        double lon = std::stof(longitude);
+        map_display_set_center_from_gps(lat, lon);
     }
 
     // Initialize settings display

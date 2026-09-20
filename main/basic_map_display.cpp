@@ -1,4 +1,6 @@
-#include "basic_map_display.h"
+#include "basic_map_display.hpp"
+
+#include "generic_nvsflash.hpp"
 
 #include "bsp/esp-bsp.h"
 
@@ -112,6 +114,12 @@ void plusButtonCb(lv_event_t * e)
         lv_display_t *disp = lv_display_get_default();
         lv_refr_now(disp);
 
+        {
+            // set current value of zoomlevel in nvsFlash
+            GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
+            esp_err_t ret;
+            ret = nvsGnss.SetU8("zoomlevel", new_zoom);
+        }
         // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
         lv_display_enable_invalidation(disp, false);
 
@@ -136,6 +144,12 @@ void minusButtonCb(lv_event_t * e)
         lv_display_t *disp = lv_display_get_default();
         lv_refr_now(disp);
 
+        {
+            // set current value of zoomlevel in nvsFlash
+            GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
+            esp_err_t ret;
+            ret = nvsGnss.SetU8("zoomlevel", new_zoom);
+        }
         // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
         lv_display_enable_invalidation(disp, false);
 
@@ -152,7 +166,7 @@ void minusButtonCb(lv_event_t * e)
 /**
  * @brief Initialize the map display
  */
-void map_display_init(lv_obj_t * parent)
+void map_display_init(lv_obj_t * parent, uint8_t current_zoomlevel)
 {
     // Configure map tiles with multiple tile types and custom grid size
     const char* tile_folders[] = {"esp_sd_tiles"};
@@ -162,7 +176,7 @@ void map_display_init(lv_obj_t * parent)
         .tile_type_count = 1,
         .grid_cols = 3,          // 5x5 grid (configurable)
         .grid_rows = 3,
-        .default_zoom = 16,
+        .default_zoom = current_zoomlevel,
         .use_spiram = true,
         .default_tile_type = 0,  // Start with street map
     };
@@ -182,7 +196,7 @@ void map_display_init(lv_obj_t * parent)
     tile_count = map_tiles_get_tile_count(map_handle);
     
     // Allocate tile images array
-    tile_images = malloc(tile_count * sizeof(lv_obj_t*));
+    tile_images = (lv_obj_t**) malloc(tile_count * sizeof(lv_obj_t*));
     if (!tile_images) {
         ESP_LOGE(TAG, "Failed to allocate tile images array");
         map_tiles_cleanup(map_handle);
@@ -216,7 +230,7 @@ void map_display_init(lv_obj_t * parent)
     }
 
     // Allocate tile borders array
-    tile_borders = malloc((tile_count+1) * sizeof(lv_obj_t*));
+    tile_borders = (lv_obj_t**) malloc((tile_count+1) * sizeof(lv_obj_t*));
     if (!tile_borders) {
         ESP_LOGE(TAG, "Failed to allocate tile borders array");
         map_tiles_cleanup(map_handle);
