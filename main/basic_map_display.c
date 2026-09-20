@@ -54,8 +54,8 @@ static lv_obj_t * minusButton = NULL;
 static lv_obj_t * tacho = NULL;
 static lv_obj_t * hoehe = NULL;
 static lv_obj_t * arrow = NULL;
-
 static lv_obj_t * time = NULL;
+static lv_obj_t * zoomlevel = NULL;
 
 static lv_style_t style_plusActive;
 static lv_style_t style_minusActive;
@@ -107,12 +107,16 @@ void plusButtonCb(lv_event_t * e)
     if(code == LV_EVENT_CLICKED) {
         ESP_LOGI(TAG, "PlusButton clicked!");
 
-        // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
+        int new_zoom = map_tiles_get_zoom(map_handle) + 1;
+        lv_label_set_text_fmt(zoomlevel, "%2d", new_zoom);
         lv_display_t *disp = lv_display_get_default();
+        lv_refr_now(disp);
+
+        // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
         lv_display_enable_invalidation(disp, false);
 
         ESP_LOGI(TAG, "Zoom in!");
-        map_display_set_zoom(map_tiles_get_zoom(map_handle) + 1, currentLatPosition, currentLonPosition);
+        map_display_set_zoom(new_zoom, currentLatPosition, currentLonPosition);
 
         // 3. Invalidation wieder erlauben
         lv_display_enable_invalidation(disp, true);
@@ -127,12 +131,16 @@ void minusButtonCb(lv_event_t * e)
     if(code == LV_EVENT_CLICKED) {
         ESP_LOGI(TAG, "MinusButton clicked!");
 
-        // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
+        int new_zoom = map_tiles_get_zoom(map_handle) - 1;
+        lv_label_set_text_fmt(zoomlevel, "%2d", new_zoom);
         lv_display_t *disp = lv_display_get_default();
+        lv_refr_now(disp);
+
+        // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
         lv_display_enable_invalidation(disp, false);
 
         ESP_LOGI(TAG, "Zoom out!");
-        map_display_set_zoom(map_tiles_get_zoom(map_handle) - 1, currentLatPosition, currentLonPosition);
+        map_display_set_zoom(new_zoom, currentLatPosition, currentLonPosition);
 
         // 3. Invalidation wieder erlauben
         lv_display_enable_invalidation(disp, true);
@@ -389,9 +397,26 @@ void map_display_init(lv_obj_t * parent)
         lv_obj_set_height(time, 30);
         // x: 0 + Rand
         // y: 0 + Rand
-        lv_obj_set_pos(time, 10, 65);
+        lv_obj_set_pos(time, 10, 165);
         lv_label_set_text_fmt(time, "%s", "11:55:00");
-        lv_obj_set_style_text_align(time, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_style_text_align(time, LV_TEXT_ALIGN_LEFT, 0);
+    }
+
+    if(!zoomlevel) {
+        // zoom level
+        // Style für große Schrift erstellen
+        //lv_style_init(&style_large);
+
+        // Eingebaute 24px-Schriftart zuweisen (Standard ist meist 14px)
+        //lv_style_set_text_font(&style_large, &lv_font_montserrat_24);
+
+        zoomlevel = lv_label_create(parent);
+        lv_obj_add_style(zoomlevel, &style_large, LV_PART_MAIN);
+        lv_obj_set_width(zoomlevel, 30);
+        lv_obj_set_height(zoomlevel, 30);
+        lv_obj_set_pos(zoomlevel, 10, 10);
+        lv_label_set_text_fmt(zoomlevel, "%2d", 16);
+        lv_obj_set_style_text_align(time, LV_TEXT_ALIGN_LEFT, 0);
     }
 
     bsp_display_unlock();
@@ -401,20 +426,28 @@ void map_display_init(lv_obj_t * parent)
 
 void map_display_set_current_values(int angle, int speed, int altitude, double lat, double lon, const char* xtime) {
     bsp_display_lock(-1);
-
     lv_label_set_text_fmt(tacho, "%3d km/h", speed);
     lv_label_set_text_fmt(hoehe, "%3d m asl", altitude);
     if (speed > 2) {
         lv_image_set_rotation(arrow, angle * 10);
     }
-
     lv_label_set_text_fmt(time, "%s", xtime);
+    lv_label_set_text_fmt(zoomlevel, "%2d", map_tiles_get_zoom(map_handle));
 
-    bsp_display_unlock();
-
+    lv_display_t *disp = lv_display_get_default();
     if(lat != 0 && lon != 0) {
+        lv_refr_now(disp);
+        // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
+        lv_display_enable_invalidation(disp, false);
+        bsp_display_unlock();
         map_display_set_center_from_gps(lat, lon);
+        bsp_display_lock(-1);
+        // 3. Invalidation wieder erlauben
+        lv_display_enable_invalidation(disp, true);
     }
+    // 4. Einmalig manuell das Neuzeichnen aller geänderten Bereiche erzwingen
+    lv_refr_now(disp);
+    bsp_display_unlock();
 }
 
 /**
