@@ -412,10 +412,13 @@ extern "C" void tabview_event_cb(lv_event_t * e)
 
     ESP_LOGI("tabview_event_cb", "active_tab: %ld, new_active_tab: %ld", active_tab, new_active_tab);
 
-    if(active_tab != new_active_tab) {
-        GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
-        esp_err_t ret;
-        ret = nvsGnss.SetU32("active_tab", new_active_tab);
+    // store active tab only for cockpit and map tab, not for settings tab
+    if(new_active_tab != (1 + (int) sd_card) ) {
+        if(active_tab != new_active_tab) {
+            GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
+            esp_err_t ret;
+            ret = nvsGnss.SetU32("active_tab", new_active_tab);
+        }
     }
 }
 
