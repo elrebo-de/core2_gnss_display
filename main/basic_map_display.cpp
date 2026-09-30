@@ -4,7 +4,7 @@
 
 #include "bsp/esp-bsp.h"
 
-static char *TAG = "basic_map_display";
+static std::string tag("basic_map_display");
 
 LV_IMAGE_DECLARE(arrow_up_11_20_a);
 LV_FONT_DECLARE(my_montserrat_14);
@@ -107,7 +107,7 @@ void plusButtonCb(lv_event_t * e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     if(code == LV_EVENT_CLICKED) {
-        ESP_LOGI(TAG, "PlusButton clicked!");
+        ESP_LOGI(tag.c_str(), "PlusButton clicked!");
 
         int new_zoom = map_tiles_get_zoom(map_handle) + 1;
         lv_label_set_text_fmt(zoomlevel, "%2d", new_zoom);
@@ -117,13 +117,12 @@ void plusButtonCb(lv_event_t * e)
         {
             // set current value of zoomlevel in nvsFlash
             GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
-            esp_err_t ret;
-            ret = nvsGnss.SetU8("zoomlevel", new_zoom);
+            nvsGnss.SetU8("zoomlevel", new_zoom);
         }
         // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
         lv_display_enable_invalidation(disp, false);
 
-        ESP_LOGI(TAG, "Zoom in!");
+        ESP_LOGI(tag.c_str(), "Zoom in!");
         map_display_set_zoom(new_zoom, currentLatPosition, currentLonPosition);
 
         // 3. Invalidation wieder erlauben
@@ -137,7 +136,7 @@ void minusButtonCb(lv_event_t * e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     if(code == LV_EVENT_CLICKED) {
-        ESP_LOGI(TAG, "MinusButton clicked!");
+        ESP_LOGI(tag.c_str(), "MinusButton clicked!");
 
         int new_zoom = map_tiles_get_zoom(map_handle) - 1;
         lv_label_set_text_fmt(zoomlevel, "%2d", new_zoom);
@@ -147,13 +146,12 @@ void minusButtonCb(lv_event_t * e)
         {
             // set current value of zoomlevel in nvsFlash
             GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
-            esp_err_t ret;
-            ret = nvsGnss.SetU8("zoomlevel", new_zoom);
+            nvsGnss.SetU8("zoomlevel", new_zoom);
         }
         // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
         lv_display_enable_invalidation(disp, false);
 
-        ESP_LOGI(TAG, "Zoom out!");
+        ESP_LOGI(tag.c_str(), "Zoom out!");
         map_display_set_zoom(new_zoom, currentLatPosition, currentLonPosition);
 
         // 3. Invalidation wieder erlauben
@@ -186,7 +184,7 @@ void map_display_init(lv_obj_t * parent, uint8_t current_zoomlevel)
     // Initialize map tiles
     map_handle = map_tiles_init(&config);
     if (!map_handle) {
-        ESP_LOGE(TAG, "Failed to initialize map tiles");
+        ESP_LOGE(tag.c_str(), "Failed to initialize map tiles");
         bsp_display_unlock();
         return;
     }
@@ -198,7 +196,7 @@ void map_display_init(lv_obj_t * parent, uint8_t current_zoomlevel)
     // Allocate tile images array
     tile_images = (lv_obj_t**) malloc(tile_count * sizeof(lv_obj_t*));
     if (!tile_images) {
-        ESP_LOGE(TAG, "Failed to allocate tile images array");
+        ESP_LOGE(tag.c_str(), "Failed to allocate tile images array");
         map_tiles_cleanup(map_handle);
         bsp_display_unlock();
         return;
@@ -210,8 +208,8 @@ void map_display_init(lv_obj_t * parent, uint8_t current_zoomlevel)
     // Fit container exactly to the screen size
     lv_obj_set_size(map_container, LV_PCT(100), LV_PCT(100));
     // Enable scrolling inside the container for its children
-    lv_obj_add_flag(map_container, LV_OBJ_FLAG_SCROLLABLE);
-
+    //lv_obj_add_flag(map_container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(map_container, true);
     lv_obj_center(map_container);
     lv_obj_set_style_pad_all(map_container, 0, 0);
     lv_obj_set_style_border_width(map_container, 0, 0);
@@ -232,7 +230,7 @@ void map_display_init(lv_obj_t * parent, uint8_t current_zoomlevel)
     // Allocate tile borders array
     tile_borders = (lv_obj_t**) malloc((tile_count+1) * sizeof(lv_obj_t*));
     if (!tile_borders) {
-        ESP_LOGE(TAG, "Failed to allocate tile borders array");
+        ESP_LOGE(tag.c_str(), "Failed to allocate tile borders array");
         map_tiles_cleanup(map_handle);
         bsp_display_unlock();
         return;
@@ -435,7 +433,7 @@ void map_display_init(lv_obj_t * parent, uint8_t current_zoomlevel)
 
     bsp_display_unlock();
 
-    ESP_LOGI(TAG, "Map display initialized");
+    ESP_LOGI(tag.c_str(), "Map display initialized");
 }
 
 void map_display_set_current_values(int angle, int speed, int altitude, double lat, double lon, const char* xtime) {
@@ -473,11 +471,11 @@ void map_display_set_current_values(int angle, int speed, int altitude, double l
 void map_display_load_location(double lat, double lon)
 {
     if (!map_handle) {
-        ESP_LOGE(TAG, "Map not initialized");
+        ESP_LOGE(tag.c_str(), "Map not initialized");
         return;
     }
     
-    ESP_LOGI(TAG, "Loading map for GPS: %.6f, %.6f", lat, lon);
+    ESP_LOGI(tag.c_str(), "Loading map for GPS: %.6f, %.6f", lat, lon);
     
     // Set center from GPS coordinates
     map_tiles_set_center_from_gps(map_handle, lat, lon);
@@ -503,10 +501,10 @@ void map_display_load_location(double lat, double lon)
                 lv_image_dsc_t* img_dsc = map_tiles_get_image(map_handle, index);
                 if (img_dsc) {
                     lv_image_set_src(tile_images[index], img_dsc);
-                    ESP_LOGI(TAG, "Loaded tile %d (%d, %d)", index, tile_x, tile_y);
+                    ESP_LOGI(tag.c_str(), "Loaded tile %d (%d, %d)", index, tile_x, tile_y);
                 }
             } else {
-                ESP_LOGW(TAG, "Failed to load tile %d (%d, %d)", index, tile_x, tile_y);
+                ESP_LOGW(tag.c_str(), "Failed to load tile %d (%d, %d)", index, tile_x, tile_y);
                 // Set a placeholder or clear the image
                 lv_image_set_src(tile_images[index], NULL);
             }
@@ -517,7 +515,7 @@ void map_display_load_location(double lat, double lon)
     // update coordinates
     lv_obj_update_layout(lv_screen_active());
 
-    ESP_LOGI(TAG, "Map tiles loaded for location");
+    ESP_LOGI(tag.c_str(), "Map tiles loaded for location");
 }
 
 /**
@@ -532,7 +530,7 @@ void map_display_set_tile_type(int tile_type, double lat, double lon)
     bsp_display_lock(-1);
 
     if (!map_handle) {
-        ESP_LOGE(TAG, "Map not initialized");
+        ESP_LOGE(tag.c_str(), "Map not initialized");
         bsp_display_unlock();
         return;
     }
@@ -540,12 +538,12 @@ void map_display_set_tile_type(int tile_type, double lat, double lon)
     // Validate tile type
     int max_types = map_tiles_get_tile_type_count(map_handle);
     if (tile_type < 0 || tile_type >= max_types) {
-        ESP_LOGW(TAG, "Invalid tile type %d (valid range: 0-%d)", tile_type, max_types - 1);
+        ESP_LOGW(tag.c_str(), "Invalid tile type %d (valid range: 0-%d)", tile_type, max_types - 1);
         bsp_display_unlock();
         return;
     }
     
-    ESP_LOGI(TAG, "Setting tile type to %d (%s)", tile_type, 
+    ESP_LOGI(tag.c_str(), "Setting tile type to %d (%s)", tile_type,
              map_tiles_get_tile_type_folder(map_handle, tile_type));
     
     // Set tile type
@@ -568,11 +566,11 @@ void map_display_set_tile_type(int tile_type, double lat, double lon)
 void map_display_set_zoom(int zoom, double lat, double lon)
 {
     if (!map_handle) {
-        ESP_LOGE(TAG, "Map not initialized");
+        ESP_LOGE(tag.c_str(), "Map not initialized");
         return;
     }
     
-    ESP_LOGI(TAG, "Setting zoom to %d", zoom);
+    ESP_LOGI(tag.c_str(), "Setting zoom to %d", zoom);
     // Update zoom level
     bsp_display_lock(-1);
     map_tiles_set_zoom(map_handle, zoom);
@@ -591,7 +589,7 @@ void map_display_set_zoom(int zoom, double lat, double lon)
 void map_display_set_center_from_gps(double lat, double lon)
 {
     if (!map_handle) {
-        ESP_LOGE(TAG, "Map not initialized");
+        ESP_LOGE(tag.c_str(), "Map not initialized");
         return;
     }
 
@@ -606,7 +604,7 @@ void map_display_set_center_from_gps(double lat, double lon)
     // Check if GPS position is within inner half of outer tiles
     if (!map_tiles_is_gps_within_inner_half_of_outer_tiles(map_handle, lat, lon)) {
         bsp_display_unlock();
-        ESP_LOGW(TAG, "GPS position outside inner half of outer tiles, reloading map");
+        ESP_LOGW(tag.c_str(), "GPS position outside inner half of outer tiles, reloading map");
         // if not, load tiles for location
         map_display_load_location(lat, lon);
         bsp_display_lock(-1);
@@ -643,18 +641,18 @@ void map_display_set_center_from_gps(double lat, double lon)
     int arrow_x = abs_px - top_left_px_x /*- scroll_x*/ - 5;
     int arrow_y = abs_py - top_left_px_y /*- scroll_y*/ - 19;
 
-    ESP_LOGD(TAG, "Marker calculation: tile_xy=(%.3f,%.3f) base=(%d,%d) abs_px=(%d,%d) scroll=(%d,%d) pixel=(%d,%d)",
+    ESP_LOGD(tag.c_str(), "Marker calculation: tile_xy=(%.3f,%.3f) base=(%d,%d) abs_px=(%d,%d) scroll=(%d,%d) pixel=(%d,%d)",
              tile_x, tile_y, base_tile_x, base_tile_y, abs_px, abs_py, scroll_x, scroll_y, marker_x, marker_y);
     
     // Check if marker is within visible bounds
     int container_width = grid_cols * MAP_TILES_TILE_SIZE;
     int container_height = grid_rows * MAP_TILES_TILE_SIZE;
     if (marker_x < -10 || marker_x > container_width || marker_y < -10 || marker_y > container_height) {
-        ESP_LOGW(TAG, "Marker at (%d, %d) is outside visible bounds (0,0) to (%d,%d)",
+        ESP_LOGW(tag.c_str(), "Marker at (%d, %d) is outside visible bounds (0,0) to (%d,%d)",
                  marker_x, marker_y, container_width, container_height);
     }
     
-    ESP_LOGD(TAG, "GPS marker at (%.6f, %.6f) positioned at pixel (%d, %d)",
+    ESP_LOGD(tag.c_str(), "GPS marker at (%.6f, %.6f) positioned at pixel (%d, %d)",
              lat, lon, marker_x, marker_y);
 
     // update coordinates
@@ -708,6 +706,6 @@ void map_display_cleanup(void)
 
     bsp_display_unlock();
 
-    ESP_LOGI(TAG, "Map display cleaned up");
+    ESP_LOGI(tag.c_str(), "Map display cleaned up");
 }
 

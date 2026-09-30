@@ -1,3 +1,6 @@
+This work is licensed under Apache-2.0 license, except lv_gnss_map.cpp and lv_gnss_map.hpp, which are licensed under MIT license.
+lv_gnss_map is a derivative work from the example basic_map_display.c of
+
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/

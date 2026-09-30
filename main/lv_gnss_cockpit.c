@@ -112,8 +112,8 @@ void lv_gnss_cockpit_init(lv_obj_t *parent)
     lv_scale_set_rotation(scale, 270);
 
     lv_obj_add_event_cb(scale, draw_event_cb, LV_EVENT_DRAW_TASK_ADDED, NULL);
-    lv_obj_add_flag(scale, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
-
+    //lv_obj_add_flag(scale, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+    lv_obj_set_send_draw_task_events(scale, true);
     // Winkel und Himmelsrichtung im Compass
     // Style für etwas größere Schrift erstellen
     static lv_style_t style_little_larger;

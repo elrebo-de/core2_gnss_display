@@ -36,7 +36,7 @@ std::string longitude;
 
 #define LOG_MEM_INFO (0)
 
-std::string tag("CORE2 GNSS Display");
+static std::string tag("CORE2 GNSS Display");
 
 bool sd_card = false; // flag to indicate a mounted SD card
 
@@ -82,7 +82,17 @@ std::string convert_gnss_date_and_time_to_local(std::string gnssDate, std::strin
     }
 
     // get UTC time from GNSS
-    struct tm utc_tm = {0};
+    struct tm utc_tm = {
+        .tm_sec = 0,
+        .tm_min = 0,
+        .tm_hour = 0,
+        .tm_mday = 0,
+        .tm_mon = 0,
+        .tm_year = 0,
+        .tm_wday = 0,
+        .tm_yday = 0,
+        .tm_isdst = 0,
+    };
     utc_tm.tm_year = 2000 - 1900 + std::stoi(gnssDate.substr(6,2)); // years since 1900
     utc_tm.tm_mon  = std::stoi(gnssDate.substr(3,2)) - 1;           // Month (0 = Januar, 7 = August)
     utc_tm.tm_mday = std::stoi(gnssDate.substr(0,2));
@@ -106,7 +116,6 @@ std::string convert_gnss_date_and_time_to_local(std::string gnssDate, std::strin
     settimeofday(&tv, NULL);
 
     // translate Timestamp to local time
-    time_t now;
     struct tm local_tm;
     if(NULL == localtime_r(&utc_timestamp, &local_tm)) {
         return std::string("");
@@ -349,9 +358,8 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 {
                     // set current values of lat, lon in nvsFlash
                     GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
-                    esp_err_t ret;
-                    ret = nvsGnss.SetStr("latitude", latitudeDeg);
-                    ret = nvsGnss.SetStr("longitude", longitudeDeg);
+                    nvsGnss.SetStr("latitude", latitudeDeg);
+                    nvsGnss.SetStr("longitude", longitudeDeg);
                 }
                 lat = std::stof(latitudeDeg);
                 lon = std::stof(longitudeDeg);
@@ -400,7 +408,9 @@ extern "C" void powerOffCb(lv_event_t * e)
 esp_vfs_fat_sdmmc_mount_config_t mount_config = {
     .format_if_mount_failed = false,      // Do not erase map data if mount fails
     .max_files = 5,                       // Must allow at least 2-3 open files for map streaming
-    .allocation_unit_size = 16 * 1024     // Large allocation units optimize binary streaming
+    .allocation_unit_size = 16 * 1024,    // Large allocation units optimize binary streaming
+    .disk_status_check_enable = 0,
+    .use_one_fat = 0,
 };
 
 extern "C" void tabview_event_cb(lv_event_t * e)
@@ -416,8 +426,7 @@ extern "C" void tabview_event_cb(lv_event_t * e)
     if(new_active_tab != (1 + (int) sd_card) ) {
         if(active_tab != new_active_tab) {
             GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
-            esp_err_t ret;
-            ret = nvsGnss.SetU32("active_tab", new_active_tab);
+            nvsGnss.SetU32("active_tab", new_active_tab);
         }
     }
 }
@@ -507,6 +516,8 @@ extern "C" void app_main(void)
     // integrate SD card via SPI
     bsp_sdcard_cfg_t sd_cfg = {
         .mount = &mount_config,
+        .host = 0,
+        .slot = 0,
     };
 
     if (bsp_sdcard_sdspi_mount(&sd_cfg) != ESP_OK) {
