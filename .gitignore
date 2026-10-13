@@ -36,6 +36,7 @@
 build/
 managed_components/
 .idea/
+scripts/
 
 main/secrets.h
 dependencies.lock

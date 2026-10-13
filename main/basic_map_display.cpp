@@ -167,7 +167,7 @@ void minusButtonCb(lv_event_t * e)
 void map_display_init(lv_obj_t * parent, uint8_t current_zoomlevel)
 {
     // Configure map tiles with multiple tile types and custom grid size
-    const char* tile_folders[] = {"esp_sd_tiles"};
+    const char* tile_folders[] = {"tiles1"};
     map_tiles_config_t config = {
         .base_path = "/sdcard",
         .tile_folders = {tile_folders[0]},
@@ -436,7 +436,8 @@ void map_display_init(lv_obj_t * parent, uint8_t current_zoomlevel)
     ESP_LOGI(tag.c_str(), "Map display initialized");
 }
 
-void map_display_set_current_values(int angle, int speed, int altitude, double lat, double lon, const char* xtime) {
+void map_display_set_current_values(int angle, int speed, int altitude, double lat, double lon, const char* xtime)
+{
     bsp_display_lock(-1);
     lv_label_set_text_fmt(tacho, "%3d km/h", speed);
     lv_label_set_text_fmt(hoehe, "%3d m asl", altitude);

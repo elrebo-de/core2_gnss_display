@@ -4,11 +4,12 @@
 #include "lv_gnss_settings.h"
 
 // all objects in settings
-static  lv_obj_t * btn;
-
+static lv_obj_t * btn;
 static battery_indicator_t battery_ui;
+static lv_obj_t * brightness;
+static lv_obj_t * label_1;
 
-void lv_gnss_settings_init(lv_obj_t *parent, lv_event_cb_t powerOffCb)
+void lv_gnss_settings_init(lv_obj_t *parent, lv_event_cb_t powerOffCb, lv_event_cb_t brightnessSliderCb, uint32_t brightness_value)
 {
     bsp_display_lock(-1);
 
@@ -29,9 +30,12 @@ void lv_gnss_settings_init(lv_obj_t *parent, lv_event_cb_t powerOffCb)
 
     // battery indicator
     create_battery_indicator(parent);
+
+    // display brightness
+    create_brightness_slider(parent, brightnessSliderCb, brightness_value);
 }
 
-void update_battery(battery_indicator_t * battery, int32_t percentage, bool is_charging)
+void set_battery_indicator(battery_indicator_t * battery, int32_t percentage, bool is_charging)
 {
     bsp_display_lock(-1);
 
@@ -106,10 +110,42 @@ void create_battery_indicator(lv_obj_t * parent)
     bsp_display_unlock();
 
     /* Set initial runtime test values (65% power, not charging) */
-    update_battery(&battery_ui, 65, false);
+    set_battery_indicator(&battery_ui, 65, false);
 }
 
 void lv_gnss_settings_set_battery_values(int32_t percentage, bool is_charging) {
-    update_battery(&battery_ui, percentage, is_charging);
+    set_battery_indicator(&battery_ui, percentage, is_charging);
+}
+
+void set_brightness(int32_t brightness_value)
+{
+    bsp_display_lock(-1);
+
+    // 1. Update the brightness slider
+    lv_slider_set_value(brightness, brightness_value, LV_ANIM_OFF);
+
+    // 2. Update the brightness label
+    lv_label_set_text_fmt(label_1, "Brightness %ld", brightness_value);
+
+    bsp_display_unlock();
+}
+
+void create_brightness_slider(lv_obj_t * parent, lv_event_cb_t brightnessSliderCb, uint32_t brightness_value)
+{
+    bsp_display_lock(-1);
+    /* 1. Create a container for the battery layout */
+    brightness = lv_slider_create(parent);
+    lv_obj_set_size(brightness, lv_pct(90), 20);
+    lv_slider_set_min_value(brightness, 10);
+    lv_slider_set_max_value(brightness, 100);
+    lv_slider_set_orientation(brightness, LV_SLIDER_ORIENTATION_HORIZONTAL);
+    label_1 = lv_label_create(brightness);
+    lv_obj_set_align(label_1, LV_ALIGN_CENTER);
+    lv_label_set_text_fmt(label_1, "Brightness %ld", brightness_value);
+    lv_obj_set_style_text_color(label_1, lv_color_black(), 0);
+    lv_obj_align(brightness, LV_ALIGN_CENTER, 0 , 0);
+    lv_obj_add_event_cb(brightness, brightnessSliderCb, LV_EVENT_RELEASED, NULL);
+
+    bsp_display_unlock();
 }
 

@@ -14,10 +14,13 @@ typedef struct {
 } battery_indicator_t;
 
 void lv_gnss_settings_set_battery_values(int32_t percentage, bool is_charging);
-void lv_gnss_settings_init(lv_obj_t *parent, lv_event_cb_t powerOffCb);
+void lv_gnss_settings_init(lv_obj_t *parent, lv_event_cb_t powerOffCb, lv_event_cb_t brightnessSliderCb, uint32_t brightness_value);
 
-void update_battery(battery_indicator_t * battery, int32_t percentage, bool is_charging);
+void set_battery_indicator(battery_indicator_t * battery, int32_t percentage, bool is_charging);
 void create_battery_indicator(lv_obj_t * parent);
+
+void set_brightness(int32_t brightness_value);
+void create_brightness_slider(lv_obj_t * parent, lv_event_cb_t brightnessSliderCb, uint32_t brightness_value);
 
 #ifdef __cplusplus
 } /*extern "C"*/

@@ -33,6 +33,7 @@ uint32_t active_tab;
 uint8_t zoomlevel;
 std::string latitude;
 std::string longitude;
+uint32_t brightness_value;
 
 #define LOG_MEM_INFO (0)
 
@@ -400,6 +401,22 @@ extern "C" void powerOffCb(lv_event_t * e)
     }
 }
 
+// Callback-Funktion für den Brightness slider release
+extern "C" void brightnessSliderCb(lv_event_t * e)
+{
+    lv_obj_t * slider = lv_event_get_target_obj(e);
+    lv_event_code_t code = lv_event_get_code(e);
+    int32_t value = lv_slider_get_value(slider);
+    if(code == LV_EVENT_RELEASED) {
+        brightness_value = value;
+        bsp_display_brightness_set(brightness_value);
+        set_brightness(brightness_value);
+
+        GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
+        nvsGnss.SetU32("brightness", brightness_value);
+    }
+}
+
 // SD card
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
@@ -459,6 +476,11 @@ extern "C" void app_main(void)
         if(ret != ESP_OK) {
             longitude = "0.0";
             ret = nvsGnss.SetStr("longitude", longitude);
+        }
+        brightness_value = nvsGnss.GetU32("brightness", &ret);
+        if(ret != ESP_OK) {
+            brightness_value = 25;
+            ret = nvsGnss.SetU32("brightness", brightness_value);
         }
     }
 
@@ -586,6 +608,7 @@ extern "C" void app_main(void)
 	);
 
     bsp_display_start(); // Initialize display and LVGL
+    bsp_display_brightness_set(brightness_value);
 
     bsp_display_lock(-1);
 
@@ -651,7 +674,8 @@ extern "C" void app_main(void)
     }
 
     // Initialize settings display
-    lv_gnss_settings_init(t3, powerOffCb);
+    lv_gnss_settings_init(t3, powerOffCb, brightnessSliderCb, brightness_value);
+    set_brightness(brightness_value);
 
     // register callback for GNSS receiver pulse
     ppsSignal.RegisterCallbackForEvent(BUTTON_SINGLE_CLICK, ppsSignalCb);
