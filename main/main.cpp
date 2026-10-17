@@ -18,9 +18,6 @@
 #include "lv_gnss_settings.h" // settings components
 #include "basic_map_display.hpp" // map components
 
-// Global Mutex for Timezone switch
-static SemaphoreHandle_t tz_mutex = NULL;
-
 #include "generic_button.hpp"
 #include "generic_uart.hpp"
 GenericUart *gnssUart; // pointer to GenericUart class
@@ -35,99 +32,30 @@ std::string latitude;
 std::string longitude;
 uint32_t brightness_value;
 
+// GNSS raw data for date/time
+std::string xdate = std::string("");
+std::string xtime = std::string("");
+// date/time according to timezone
+std::string xdate_tz = std::string("");
+std::string xtime_tz = std::string("");
+
+// counter for GNSS date/time updates
+uint32_t gnssTimeCounter = 0;
+
+#include "time_adjust.hpp"
+
+// all objects in tabview
+static lv_obj_t * tv;
+static lv_obj_t * t1 = NULL;
+static lv_obj_t * t2 = NULL;
+static lv_obj_t * t3 = NULL;
+
+
 #define LOG_MEM_INFO (0)
 
 static std::string tag("CORE2 GNSS Display");
 
 bool sd_card = false; // flag to indicate a mounted SD card
-
-time_t my_timegm_safe(struct tm *tm) {
-    // initialize Mutex lazily at first call
-    if (tz_mutex == NULL) {
-        static StaticSemaphore_t mutex_buffer;
-        tz_mutex = xSemaphoreCreateMutexStatic(&mutex_buffer);
-    }
-
-    time_t ret = -1;
-
-    // lock Mutex (warts forever until Mutex is free
-    if (xSemaphoreTake(tz_mutex, portMAX_DELAY) == pdTRUE) {
-        char *tz = getenv("TZ");
-
-        // switch to UTC temporarily
-        unsetenv("TZ");
-        tzset();
-
-        // UTC has no DST
-        tm->tm_isdst = 0;
-        ret = mktime(tm);
-
-        // reset original timezone
-        if (tz) {
-            setenv("TZ", tz, 1);
-        } else {
-            unsetenv("TZ");
-        }
-        tzset();
-
-        // unlock Mutex
-        xSemaphoreGive(tz_mutex);
-    }
-    return ret;
-}
-
-std::string convert_gnss_date_and_time_to_local(std::string gnssDate, std::string gnssTime)
-{
-    if(gnssDate.length() < 8 || gnssTime.length() < 8) {
-        return std::string("");
-    }
-
-    // get UTC time from GNSS
-    struct tm utc_tm = {
-        .tm_sec = 0,
-        .tm_min = 0,
-        .tm_hour = 0,
-        .tm_mday = 0,
-        .tm_mon = 0,
-        .tm_year = 0,
-        .tm_wday = 0,
-        .tm_yday = 0,
-        .tm_isdst = 0,
-    };
-    utc_tm.tm_year = 2000 - 1900 + std::stoi(gnssDate.substr(6,2)); // years since 1900
-    utc_tm.tm_mon  = std::stoi(gnssDate.substr(3,2)) - 1;           // Month (0 = Januar, 7 = August)
-    utc_tm.tm_mday = std::stoi(gnssDate.substr(0,2));
-    utc_tm.tm_hour = std::stoi(gnssTime.substr(0,2));
-    utc_tm.tm_min  = std::stoi(gnssTime.substr(3,2));
-    utc_tm.tm_sec  = std::stoi(gnssTime.substr(6,2));
-
-    char utc_buf[64];
-    strftime(utc_buf, sizeof(utc_buf), "%d.%m.%Y %H:%M:%S %Z", &utc_tm);
-
-    // 3. transform UTC structure to a Unix timestamp
-    // my_timegm_safe() uses UTC
-    time_t utc_timestamp = my_timegm_safe(&utc_tm);
-
-    // define Unix timestamp
-    struct timeval tv;
-    tv.tv_sec = utc_timestamp;  // Seconds since 1.1.1970
-    tv.tv_usec = 0;             // Microseconds
-
-    // 2. set system time directly
-    settimeofday(&tv, NULL);
-
-    // translate Timestamp to local time
-    struct tm local_tm;
-    if(NULL == localtime_r(&utc_timestamp, &local_tm)) {
-        return std::string("");
-    };
-
-    // format result
-    char buf[64];
-    strftime(buf, sizeof(buf), "%d.%m.%Y %H:%M:%S %Z", &local_tm);
-
-    return std::string(buf);
-}
 
 // Callback function for PPS signal from LC76G GNSS Module
 extern "C" void ppsSignalCb(void *arg, void *data)
@@ -145,8 +73,6 @@ extern "C" void ppsSignalCb(void *arg, void *data)
     std::string longitudeDegMin;
     std::string latitudeDegMinSec;
     std::string longitudeDegMinSec;
-    std::string xdate;
-    std::string xtime;
     int nrOfSats = 0;
 
     // reads data (max. 2048 - 1 bytes) from UART with a timeout 0f 100 ms
@@ -271,7 +197,7 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                     xtime = time.substr(0,2).append(":").append(time.substr(2,2)).append(":").append(time.substr(4,2));
                 }
                 // verwende date im label widget datum (date)
-                if(time.length() >= 6) {
+                if(date.length() >= 6) {
                     xdate = date.substr(0,2).append(".").append(date.substr(2,2)).append(".").append(date.substr(4,2));
                 }
             }
@@ -329,21 +255,53 @@ extern "C" void ppsSignalCb(void *arg, void *data)
         }
         ESP_LOGD(tag.c_str(), "speed: %d, angle: %d, alt: %d, latDegMinSec: %s, latDeg: %s, lonDegMinSec: %s, lonDeg: %s, date: %s, time: %s, nrOfSats: %d", speed, angle, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
 
+        // increment gnssTimeCounter
+        gnssTimeCounter++;
+        ESP_LOGD(tag.c_str(), "gnssTimeCounter = %lu", gnssTimeCounter);
+
         // set current timestamp
-        if(xdate.length() == 8 && xtime.length() == 8) {
-            std::string localTimestamp = convert_gnss_date_and_time_to_local(xdate, xtime);
+        TimeAdjust* timeAdjust = &TimeAdjust::getInstance();
+        bool isSynchronized = timeAdjust->isSynchronized();
+        ESP_LOGD(tag.c_str(), "isSynchronized = %s", isSynchronized ? "true" : "false");
+        ESP_LOGD(tag.c_str(), "xtime_tz.length() = %d", xtime_tz.length());
 
-            ESP_LOGD(tag.c_str(), "Local time: %s", localTimestamp.c_str());
+        if( ( !isSynchronized && xdate.length() == 8 && xtime.length() == 8 ) ||
+            ( isSynchronized && ( (xtime_tz.length() == 0) || (gnssTimeCounter > 5 * 60) ) ) ) {
+            // reset counter
+            gnssTimeCounter = 0;
 
-            if(localTimestamp.length() >= 19) {
-                xdate = localTimestamp.substr(0,6).append(localTimestamp.substr(8,2));
-                xtime = localTimestamp.substr(11);
+            if(xdate.length() == 8 && xtime.length() == 8) {
+                std::string localTimestamp = timeAdjust->adjustTime(xdate, xtime);
+
+                ESP_LOGD(tag.c_str(), "Local time: %s", localTimestamp.c_str());
+
+                if(localTimestamp.length() >= 19) {
+                    xdate_tz = localTimestamp.substr(0,6).append(localTimestamp.substr(8,2));
+                    xtime_tz = localTimestamp.substr(11);
+                }
+                else {
+                    xdate_tz = "";
+                    xtime_tz = "";
+                }
             }
-            else xtime = "";
+        }
+        else {
+            time_t now;
+            struct tm tm;
+            char buf[64];
+
+            time(&now);
+            localtime_r(&now, &tm);
+
+            snprintf(buf, 64, "%02d.%02d.%02d", tm.tm_mday, tm.tm_mon + 1, tm.tm_year - 100);
+            xdate_tz = std::string(buf);
+
+            snprintf(buf, 64, "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
+            xtime_tz = std::string(buf);
         }
 
         // set current cockpit values
-        lv_gnss_cockpit_set_current_values(angle, speed, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
+        lv_gnss_cockpit_set_current_values(angle, speed, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate_tz.c_str(), xtime_tz.c_str(), nrOfSats);
 
         // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
         bsp_display_lock(-1);
@@ -365,7 +323,7 @@ extern "C" void ppsSignalCb(void *arg, void *data)
                 lat = std::stof(latitudeDeg);
                 lon = std::stof(longitudeDeg);
             }
-            map_display_set_current_values(angle, speed, altitude, lat, lon, xtime.substr(0,5).c_str());
+            map_display_set_current_values(angle, speed, altitude, lat, lon, xtime_tz.substr(0,5).c_str());
         }
 
         // 3. Invalidation wieder erlauben
@@ -404,13 +362,12 @@ extern "C" void powerOffCb(lv_event_t * e)
 // Callback-Funktion für den Brightness slider release
 extern "C" void brightnessSliderCb(lv_event_t * e)
 {
-    lv_obj_t * slider = lv_event_get_target_obj(e);
     lv_event_code_t code = lv_event_get_code(e);
-    int32_t value = lv_slider_get_value(slider);
     if(code == LV_EVENT_RELEASED) {
-        brightness_value = value;
+        lv_obj_t * slider = lv_event_get_target_obj(e);
+        brightness_value = lv_slider_get_value(slider);
+
         bsp_display_brightness_set(brightness_value);
-        set_brightness(brightness_value);
 
         GenericNvsFlash nvsGnss(std::string("nvsGnss"), std::string("gnss"), NVS_READWRITE);
         nvsGnss.SetU32("brightness", brightness_value);
@@ -488,15 +445,15 @@ extern "C" void app_main(void)
     //esp_log_level_set("CORE2 GNSS Display", ESP_LOG_DEBUG);
     //esp_log_level_set("basic_map_display", ESP_LOG_DEBUG);
 
-    ESP_LOGI(tag.c_str(), "Configure local timezone");
+    ESP_LOGI(tag.c_str(), "Configure TimeAdjust");
+    TimeAdjust* timeAdjust = &TimeAdjust::getInstance();
     // set timezone für Germany (CET/CEST incl. rules for switching)
     // "CET-1CEST,M3.5.0,M10.5.0" bedeutet:
     // - Normal time is CET (UTC+1)
     // - Daylight saving time is CEST (UTC+2)
     // - switch to CEST: March (3), last sunday (.5.0)
     // - switch to CET: October (10), last sunday (.5.0)
-    setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0", 1);
-    tzset();
+    timeAdjust->setTimezone("CET-1CEST,M3.5.0,M10.5.0");
 
     ESP_LOGI(tag.c_str(), "Configure GenericUart gnssUart");
 
@@ -616,22 +573,14 @@ extern "C" void app_main(void)
     // display the TabView
     //********************
 
-    // all objects in tabview
-    static lv_obj_t * tv;
-
     tv = lv_tabview_create(lv_screen_active());
     lv_tabview_set_tab_bar_position(tv, LV_DIR_BOTTOM);
     lv_tabview_set_tab_bar_size(tv, 30);
-    //lv_obj_add_event_cb(tv, tabview_delete_event_cb, LV_EVENT_DELETE, NULL);
-
-    lv_obj_t * t1 = NULL;
-    lv_obj_t * t2 = NULL;
-    lv_obj_t * t3 = NULL;
 
     t1 = lv_tabview_add_tab(tv, "Cockpit");
-    if (sd_card) {
-        t2 = lv_tabview_add_tab(tv, "Map");
-    }
+    //if (sd_card) {
+    t2 = lv_tabview_add_tab(tv, "Map");
+    //}
     t3 = lv_tabview_add_tab(tv, "Settings");
 
     // set padding to 0 in all tabs
@@ -640,19 +589,19 @@ extern "C" void app_main(void)
     lv_obj_set_style_pad_left(t1, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_right(t1, 0, LV_PART_MAIN);
 
-    if(sd_card) {
-        lv_obj_set_style_pad_top(t2, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_bottom(t2, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_left(t2, 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_right(t2, 0, LV_PART_MAIN);
-    }
+    //if(sd_card) {
+    lv_obj_set_style_pad_top(t2, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_bottom(t2, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_left(t2, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_right(t2, 0, LV_PART_MAIN);
+    //}
 
     lv_obj_set_style_pad_top(t3, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_bottom(t3, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_left(t3, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_right(t3, 0, LV_PART_MAIN);
 
-    lv_tabview_set_act(tv, active_tab, LV_ANIM_OFF);
+    lv_tabview_set_active(tv, active_tab, LV_ANIM_OFF);
     lv_obj_add_event_cb(tv, tabview_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     bsp_display_unlock();
@@ -697,7 +646,12 @@ extern "C" void app_main(void)
         // It is actively charging if the status state is between 0 and 3
         bool is_charging = (charge_status <= 3);
 
-        ESP_LOGI(tag.c_str(), "Battery Voltage: %d mV, Charge State: %s(%d) (%d %%)", battery_voltage_mv, is_charging ? "Charging" : "Discharging", charge_status, battery_percentage);
+        ESP_LOGI(tag.c_str(), "%s %s Battery Voltage: %d mV, Charge State: %s(%d) (%d %%)", xdate_tz.c_str(), xtime_tz.c_str(),
+        battery_voltage_mv, is_charging ? "Charging" : "Discharging", charge_status, battery_percentage);
+
+        ESP_LOGI(tag.c_str(), "heap %u KB internal / %u KB PSRAM",
+                 (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
+                 (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
 
         lv_gnss_settings_set_battery_values(battery_percentage, is_charging);
 
