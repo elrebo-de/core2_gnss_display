@@ -179,7 +179,7 @@ void map_display_init(lv_obj_t * parent, uint8_t current_zoomlevel)
         .default_tile_type = 0,  // Start with street map
     };
 
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
 
     // Initialize map tiles
     map_handle = map_tiles_init(&config);
@@ -438,7 +438,7 @@ void map_display_init(lv_obj_t * parent, uint8_t current_zoomlevel)
 
 void map_display_set_current_values(int angle, int speed, int altitude, double lat, double lon, const char* xtime)
 {
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
     lv_label_set_text_fmt(tacho, "%3d km/h", speed);
     lv_label_set_text_fmt(hoehe, "%3d m asl", altitude);
     if (speed > 2) {
@@ -454,7 +454,7 @@ void map_display_set_current_values(int angle, int speed, int altitude, double l
         lv_display_enable_invalidation(disp, false);
         bsp_display_unlock();
         map_display_set_center_from_gps(lat, lon);
-        bsp_display_lock(-1);
+        bsp_display_lock(0);
         // 3. Invalidation wieder erlauben
         lv_display_enable_invalidation(disp, true);
     }
@@ -495,7 +495,7 @@ void map_display_load_location(double lat, double lon)
             // Load the tile
             bool loaded = map_tiles_load_tile(map_handle, index, tile_x, tile_y);
 
-            bsp_display_lock(-1);
+            bsp_display_lock(0);
 
             if (loaded) {
                 // Update the image widget
@@ -528,7 +528,7 @@ void map_display_load_location(double lat, double lon)
  */
 void map_display_set_tile_type(int tile_type, double lat, double lon)
 {
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
 
     if (!map_handle) {
         ESP_LOGE(tag.c_str(), "Map not initialized");
@@ -552,7 +552,7 @@ void map_display_set_tile_type(int tile_type, double lat, double lon)
         bsp_display_unlock();
         // Reload tiles for the new type
         map_display_load_location(lat, lon);
-        bsp_display_lock(-1);
+        bsp_display_lock(0);
     }
     bsp_display_unlock();
  }
@@ -573,7 +573,7 @@ void map_display_set_zoom(int zoom, double lat, double lon)
     
     ESP_LOGI(tag.c_str(), "Setting zoom to %d", zoom);
     // Update zoom level
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
     map_tiles_set_zoom(map_handle, zoom);
     bsp_display_unlock();
 
@@ -597,7 +597,7 @@ void map_display_set_center_from_gps(double lat, double lon)
     currentLatPosition = lat;
     currentLonPosition = lon;
 
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
 
     // update coordinates
     lv_obj_update_layout(lv_screen_active());
@@ -608,7 +608,7 @@ void map_display_set_center_from_gps(double lat, double lon)
         ESP_LOGW(tag.c_str(), "GPS position outside inner half of outer tiles, reloading map");
         // if not, load tiles for location
         map_display_load_location(lat, lon);
-        bsp_display_lock(-1);
+        bsp_display_lock(0);
     }
 
     // update coordinates
@@ -686,7 +686,7 @@ void map_display_set_center_from_gps(double lat, double lon)
  */
 void map_display_cleanup(void)
 {
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
 
     if (tile_images) {
         free(tile_images);

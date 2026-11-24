@@ -22,6 +22,8 @@
 #include "generic_uart.hpp"
 GenericUart *gnssUart; // pointer to GenericUart class
 
+std::string allMessages;
+
 #include "i2c_master.hpp"
 I2cMaster* i2c = NULL;
 
@@ -57,10 +59,13 @@ static std::string tag("CORE2 GNSS Display");
 
 bool sd_card = false; // flag to indicate a mounted SD card
 
-// Callback function for PPS signal from LC76G GNSS Module
-extern "C" void ppsSignalCb(void *arg, void *data)
+extern "C" void my_timer(lv_timer_t * timer)
 {
-    ESP_LOGD(tag.c_str(), "Callback for PPS signal called!");
+    ESP_LOGD(tag.c_str(), "Callback for reading data from LC76G GNSS receiver called!");
+
+    /* Use the user_data */
+    std::string *allMessages = (std::string *)lv_timer_get_user_data(timer);
+    ESP_LOGD(tag.c_str(), "my_timer called with user data (length=%d)\n", allMessages->length());
 
     int i;
 
@@ -75,18 +80,11 @@ extern "C" void ppsSignalCb(void *arg, void *data)
     std::string longitudeDegMinSec;
     int nrOfSats = 0;
 
-    // reads data (max. 2048 - 1 bytes) from UART with a timeout 0f 100 ms
-    // int len = uart_read_bytes(*uart_num, data, 2048 - 1, 100 / portTICK_PERIOD_MS);
-    //int len = uart_read_bytes(gnssUart->getUartNum(), data, 2048 - 1, 100 / portTICK_PERIOD_MS);
-
-    // every second the LC76G sends data (less than 2k)
-    std::string allMessages = gnssUart->readString(100);
-
-    if (allMessages.length() > 0) {
+    if (allMessages->length() > 0) {
         // parse message $GNVTG
-        std::size_t position = allMessages.find("$GNVTG");
+        std::size_t position = allMessages->find("$GNVTG");
         if(position != std::string::npos) {
-            std::stringstream gnvtg(allMessages.substr(position));
+            std::stringstream gnvtg(allMessages->substr(position));
 
             std::string segment;
             std::vector<std::string> seglist;
@@ -125,9 +123,9 @@ extern "C" void ppsSignalCb(void *arg, void *data)
         }
 
         // parse message $GNRMC
-        position = allMessages.find("$GNRMC");
+        position = allMessages->find("$GNRMC");
         if(position != std::string::npos) {
-            std::stringstream gnrmc(allMessages.substr(position));
+            std::stringstream gnrmc(allMessages->substr(position));
 
             std::string segment;
             std::vector<std::string> seglist;
@@ -207,9 +205,9 @@ extern "C" void ppsSignalCb(void *arg, void *data)
         }
 
         // parse message $GNGGA
-        position = allMessages.find("$GNGGA");
+        position = allMessages->find("$GNGGA");
         if(position != std::string::npos) {
-            std::stringstream gngga(allMessages.substr(position));
+            std::stringstream gngga(allMessages->substr(position));
 
             std::string segment;
             std::vector<std::string> seglist;
@@ -255,6 +253,12 @@ extern "C" void ppsSignalCb(void *arg, void *data)
         }
         ESP_LOGD(tag.c_str(), "speed: %d, angle: %d, alt: %d, latDegMinSec: %s, latDeg: %s, lonDegMinSec: %s, lonDeg: %s, date: %s, time: %s, nrOfSats: %d", speed, angle, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate.c_str(), xtime.c_str(), nrOfSats);
 
+        // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
+//*******        bsp_display_lock(0);
+//*******        lv_display_t *disp = lv_display_get_default();
+//*******        lv_display_enable_invalidation(disp, false);
+//*******        bsp_display_unlock();
+
         // increment gnssTimeCounter
         gnssTimeCounter++;
         ESP_LOGD(tag.c_str(), "gnssTimeCounter = %lu", gnssTimeCounter);
@@ -262,6 +266,8 @@ extern "C" void ppsSignalCb(void *arg, void *data)
         // set current timestamp
         TimeAdjust* timeAdjust = &TimeAdjust::getInstance();
         bool isSynchronized = timeAdjust->isSynchronized();
+        ESP_LOGD(tag.c_str(), "xdate.length() = %d", xdate.length());
+        ESP_LOGD(tag.c_str(), "xtime.length() = %d", xtime.length());
         ESP_LOGD(tag.c_str(), "isSynchronized = %s", isSynchronized ? "true" : "false");
         ESP_LOGD(tag.c_str(), "xtime_tz.length() = %d", xtime_tz.length());
 
@@ -271,7 +277,9 @@ extern "C" void ppsSignalCb(void *arg, void *data)
             gnssTimeCounter = 0;
 
             if(xdate.length() == 8 && xtime.length() == 8) {
+                bsp_display_lock(0);
                 std::string localTimestamp = timeAdjust->adjustTime(xdate, xtime);
+                bsp_display_unlock();
 
                 ESP_LOGD(tag.c_str(), "Local time: %s", localTimestamp.c_str());
 
@@ -304,7 +312,7 @@ extern "C" void ppsSignalCb(void *arg, void *data)
         lv_gnss_cockpit_set_current_values(angle, speed, altitude, latitudeDegMinSec.c_str(), latitudeDeg.c_str(), longitudeDegMinSec.c_str(), longitudeDeg.c_str(), xdate_tz.c_str(), xtime_tz.c_str(), nrOfSats);
 
         // 2. Das automatische Vormerken von Änderungen stoppen (Freeze)
-        bsp_display_lock(-1);
+        bsp_display_lock(0);
         lv_display_t *disp = lv_display_get_default();
         lv_display_enable_invalidation(disp, false);
         bsp_display_unlock();
@@ -327,13 +335,53 @@ extern "C" void ppsSignalCb(void *arg, void *data)
         }
 
         // 3. Invalidation wieder erlauben
-        bsp_display_lock(-1);
+        bsp_display_lock(0);
         lv_display_enable_invalidation(disp, true);
         // 4. Einmalig manuell das Neuzeichnen aller geänderten Bereiche erzwingen
         lv_refr_now(disp);
         bsp_display_unlock();
 
     }
+}
+
+extern "C" void rx_task(void *arg)
+{
+    GenericUart* uart = (GenericUart *) arg;
+    uart_event_t event;
+
+    while (1) {
+        // Wait for UART events with timeout to allow task yielding
+        if (xQueueReceive(uart->getUartQueue(), (void *)&event, pdMS_TO_TICKS(100))) {
+            switch (event.type) {
+                case UART_DATA:
+                {
+                    if(event.timeout_flag) {
+                        // read received data into allMessages
+                        allMessages = uart->readString(100);
+                }
+                    break;
+                }
+
+                case UART_FIFO_OVF:
+                    ESP_LOGW(uart->getTag().c_str(), "UART FIFO overflow");
+                    uart_flush_input(uart->getUartNum());
+                    xQueueReset(uart->getUartQueue());
+                    break;
+
+                case UART_BUFFER_FULL:
+                    ESP_LOGW(uart->getTag().c_str(), "UART ring buffer full");
+                    uart_flush_input(uart->getUartNum());
+                    xQueueReset(uart->getUartQueue());
+                    break;
+
+                default:
+                    break;
+            }
+        }
+        // Yield to other tasks periodically
+        taskYIELD();
+    }
+    vTaskDelete(NULL);
 }
 
 // Callback-Funktion für den PowerOff Button click
@@ -442,7 +490,7 @@ extern "C" void app_main(void)
     }
 
     // set log level to DEBUG for selected TAGs
-    //esp_log_level_set("CORE2 GNSS Display", ESP_LOG_DEBUG);
+    // esp_log_level_set("CORE2 GNSS Display", ESP_LOG_DEBUG);
     //esp_log_level_set("basic_map_display", ESP_LOG_DEBUG);
 
     ESP_LOGI(tag.c_str(), "Configure TimeAdjust");
@@ -454,37 +502,6 @@ extern "C" void app_main(void)
     // - switch to CEST: March (3), last sunday (.5.0)
     // - switch to CET: October (10), last sunday (.5.0)
     timeAdjust->setTimezone("CET-1CEST,M3.5.0,M10.5.0");
-
-    ESP_LOGI(tag.c_str(), "Configure GenericUart gnssUart");
-
-    // set UART configuration
-    const uart_port_t uart_num = UART_NUM_2;
-
-    uart_config_t uart_config = {
-        .baud_rate = 115200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .rx_flow_ctrl_thresh = 0,
-        .source_clk = UART_SCLK_DEFAULT,
-        .flags = {
-           .allow_pd = 0,
-           .backup_before_sleep = 0,
-        },
-    };
-    // we do not use the TX pin, because we are only reading from RX
-
-    // M5STACK CORE2 V1.1
-    const int uart_tx_pin = UART_PIN_NO_CHANGE; // pin 32 used for LC76G PPS signal
-    const int uart_rx_pin = 33;
-
-    gnssUart = new GenericUart(
-                 "gnssUart",
-                 uart_num,
-                 &uart_config,
-                 uart_tx_pin,
-                 uart_rx_pin);
 
     ESP_LOGI(tag.c_str(), "Configure SD card");
     // Initialise BSP (incl. I2C/PMU)
@@ -507,7 +524,6 @@ extern "C" void app_main(void)
         ESP_LOGI(tag.c_str(), "SD card successfully mounted at %s!", BSP_SD_MOUNT_POINT);
         sd_card = true;
     }
-
 
     ESP_LOGI(tag.c_str(), "Configure AXP2101 PMU");
 
@@ -546,28 +562,59 @@ extern "C" void app_main(void)
         printf("Error: PSRAM could not be initialised.\n");
     }
 
+    ESP_LOGI(tag.c_str(), "Configure GenericUart gnssUart");
 
-    ESP_LOGI(tag.c_str(), "Configure GenericButton ppsSignal");
+    // set UART configuration
+    const uart_port_t uart_num = UART_NUM_2;
+    uint32_t uart_buffer_size = 2048;
 
-    // set GPIO PPS signal "Button" configuration
-
-    /* M5STACK CORE2 V1.1 */
-    button_gpio_config_t btn_gpio_cfg = {
-        .gpio_num = 32,
-        .active_level = 1,
-        .enable_power_save = false,
-        .disable_pull = true,
+    uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .rx_flow_ctrl_thresh = 0,
+#if ESP_IDF_VERSION_MAJOR == 6
+        .rx_glitch_filt_thresh = 0,
+#endif
+        .source_clk = UART_SCLK_DEFAULT,
+        .flags = {
+           .allow_pd = 0,
+           .backup_before_sleep = 0,
+        },
     };
+    // we do not use the TX pin, because we are only reading from RX
 
-    GenericButton ppsSignal(
-	   std::string("ppsSignal"),
-	   &btn_gpio_cfg
-	);
+    // M5STACK CORE2 V1.1
+    const int uart_tx_pin = UART_PIN_NO_CHANGE; // pin 32 used for LC76G PPS signal
+    const int uart_rx_pin = 33;
 
-    bsp_display_start(); // Initialize display and LVGL
+    gnssUart = new GenericUart(
+                 "gnssUart",
+                 uart_num,
+                 &uart_config,
+                 uart_tx_pin,
+                 uart_rx_pin,
+                 uart_buffer_size,
+                 rx_task);
+
+    //bsp_display_start(); // Initialize display and LVGL
+    bsp_display_cfg_t cfg = {
+        .lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG(),
+        .buffer_size   = BSP_LCD_H_RES * BSP_LCD_V_RES,
+        .double_buffer = false,
+        .flags = {
+            .buff_dma    = false,
+            .buff_spiram = true,
+        },
+    };
+    cfg.lvgl_port_cfg.task_stack = 8192;
+    bsp_display_start_with_config(&cfg);
+
     bsp_display_brightness_set(brightness_value);
 
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
 
     //********************
     // display the TabView
@@ -626,11 +673,16 @@ extern "C" void app_main(void)
     lv_gnss_settings_init(t3, powerOffCb, brightnessSliderCb, brightness_value);
     set_brightness(brightness_value);
 
-    // register callback for GNSS receiver pulse
-    ppsSignal.RegisterCallbackForEvent(BUTTON_SINGLE_CLICK, ppsSignalCb);
+    lv_timer_t * timer = lv_timer_create(my_timer, 1000,  (void *)&allMessages);
 
     // log charging state every 30 seconds
     while(1) {
+        bsp_display_lock(0);
+        lv_timer_handler(); /* In älteren LVGL-Versionen: lv_task_handler(); */
+        bsp_display_unlock();
+        usleep(5000);       /* Kleine Pause (z. B. 5ms) */
+    }
+    /*
         I2cDevice *device = i2c->GetDevice("AXP2101");
 
         uint8_t msb = device->ReadRegister(0x34);
@@ -657,4 +709,5 @@ extern "C" void app_main(void)
 
         vTaskDelay(30000 / portTICK_PERIOD_MS); // delay 30 seconds
     }
+    */
 }

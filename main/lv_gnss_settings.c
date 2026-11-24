@@ -13,7 +13,7 @@ static lv_subject_t * brightness_subject_value;
 
 void lv_gnss_settings_init(lv_obj_t *parent, lv_event_cb_t powerOffCb, lv_event_cb_t brightnessSliderCb, uint32_t brightness_value)
 {
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
 
     // "Off" button
     btn = lv_btn_create(parent);
@@ -39,7 +39,7 @@ void lv_gnss_settings_init(lv_obj_t *parent, lv_event_cb_t powerOffCb, lv_event_
 
 void set_battery_indicator(battery_indicator_t * battery, int32_t percentage, bool is_charging)
 {
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
 
     // 1. Update the bar fill level smoothly
     lv_bar_set_value(battery->bar, percentage, LV_ANIM_ON);
@@ -69,7 +69,7 @@ void set_battery_indicator(battery_indicator_t * battery, int32_t percentage, bo
 
 void create_battery_indicator(lv_obj_t * parent)
 {
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
     /* 1. Create a container for the battery layout */
     lv_obj_t * battery_cont = lv_obj_create(parent);
     lv_obj_remove_style_all(battery_cont);
@@ -121,7 +121,7 @@ void lv_gnss_settings_set_battery_values(int32_t percentage, bool is_charging) {
 
 void set_brightness(int32_t brightness_value)
 {
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
     lv_slider_set_value(brightness, brightness_value, LV_ANIM_OFF);
     bsp_display_unlock();
 }
@@ -136,7 +136,7 @@ void create_brightness_slider(lv_obj_t * parent, lv_event_cb_t brightnessSliderC
         lv_subject_set_int(brightness_subject_value, brightness_value);
         inited = true;
     }
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
     /* 1. Create a container for the battery layout */
     brightness = lv_slider_create(parent);
     lv_obj_set_size(brightness, lv_pct(90), 20);

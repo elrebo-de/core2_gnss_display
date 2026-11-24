@@ -35,35 +35,49 @@ static const char * heading_to_cardinal(int32_t heading)
 
 static void set_heading_value(void * obj, int32_t v)
 {
-    bsp_display_lock(-1);
+    //bsp_display_lock(0);
     LV_UNUSED(obj);
     lv_scale_set_rotation(scale, 270 - v);
     lv_label_set_text_fmt(label, "%d°\n%s", (int)v, heading_to_cardinal(v));
-    bsp_display_unlock();
+    //bsp_display_unlock();
 }
 
 void lv_gnss_cockpit_set_current_values(int angle, int speed, int altitude, const char *latitudeDegMinSec, const char *latitudeDeg, const char *longitudeDegMinSec, const char *longitudeDeg, const char *date, const char *time, int nrOfSats)
 {
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
+
     if (speed > 2) {
         lv_scale_set_rotation(scale, 270 - angle);
+        lv_obj_invalidate(scale);
         lv_label_set_text_fmt(label, "%d°\n%s", angle, heading_to_cardinal(angle));
+        lv_obj_invalidate(label);
     }
     lv_label_set_text_fmt(tacho, "%3d km/h", speed);
+    lv_obj_invalidate(tacho);
     lv_label_set_text_fmt(hoehe, "%3d m asl", altitude);
+    lv_obj_invalidate(hoehe);
     lv_label_set_text_fmt(breiteDegMinSec, "%s", latitudeDegMinSec);
+    lv_obj_invalidate(breiteDegMinSec);
     lv_label_set_text_fmt(breiteDeg, "%s", latitudeDeg);
+    lv_obj_invalidate(breiteDeg);
     lv_label_set_text_fmt(laengeDegMinSec, "%s", longitudeDegMinSec);
+    lv_obj_invalidate(laengeDegMinSec);
     lv_label_set_text_fmt(laengeDeg, "%s", longitudeDeg);
+    lv_obj_invalidate(laengeDeg);
     lv_label_set_text_fmt(datum, "Date: %s", date);
+    lv_obj_invalidate(datum);
     lv_label_set_text_fmt(uhrzeit, "Time: %s", time);
+    lv_obj_invalidate(uhrzeit);
     lv_label_set_text_fmt(anzahlSatelliten, "Nr of Sats: %d", nrOfSats);
+    lv_obj_invalidate(anzahlSatelliten);
+
+    lv_refr_now(NULL);
     bsp_display_unlock();
 }
 
 static void draw_event_cb(lv_event_t * e)
 {
-    bsp_display_lock(-1);
+    //bsp_display_lock(0);
     lv_draw_task_t * draw_task = lv_event_get_draw_task(e);
     lv_draw_dsc_base_t * base_dsc = (lv_draw_dsc_base_t *)lv_draw_task_get_draw_dsc(draw_task);
     lv_draw_label_dsc_t * label_draw_dsc = lv_draw_task_get_label_dsc(draw_task);
@@ -80,12 +94,12 @@ static void draw_event_cb(lv_event_t * e)
             }
         }
     }
-    bsp_display_unlock();
+    //bsp_display_unlock();
 }
 
 void lv_gnss_cockpit_init(lv_obj_t *parent)
 {
-    bsp_display_lock(-1);
+    bsp_display_lock(0);
 
     // Compass
     scale = lv_scale_create(parent);
@@ -112,7 +126,6 @@ void lv_gnss_cockpit_init(lv_obj_t *parent)
     lv_scale_set_rotation(scale, 270);
 
     lv_obj_add_event_cb(scale, draw_event_cb, LV_EVENT_DRAW_TASK_ADDED, NULL);
-    //lv_obj_add_flag(scale, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
     lv_obj_set_send_draw_task_events(scale, true);
     // Winkel und Himmelsrichtung im Compass
     // Style für etwas größere Schrift erstellen
