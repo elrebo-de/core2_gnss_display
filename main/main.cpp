@@ -602,14 +602,18 @@ extern "C" void app_main(void)
     //bsp_display_start(); // Initialize display and LVGL
     bsp_display_cfg_t cfg = {
         .lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG(),
-        .buffer_size   = BSP_LCD_H_RES * BSP_LCD_V_RES,
-        .double_buffer = false,
+        /* 1/5 bis 1/4 der Bildschirmfläche (320x240) im schnellen internen DMA-RAM */
+        .buffer_size = BSP_LCD_H_RES * 48,
+        .double_buffer = true,
         .flags = {
-            .buff_dma    = false,
-            .buff_spiram = true,
-        },
+            .buff_dma = true,
+            .buff_spiram = false,
+        }
     };
-    cfg.lvgl_port_cfg.task_stack = 8192;
+
+    /* Stack für LVGL v9 auf 10 KB erhöhen */
+    cfg.lvgl_port_cfg.task_stack = 10240;
+
     bsp_display_start_with_config(&cfg);
 
     bsp_display_brightness_set(brightness_value);
